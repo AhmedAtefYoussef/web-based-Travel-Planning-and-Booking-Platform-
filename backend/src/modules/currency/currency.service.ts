@@ -25,6 +25,8 @@ export const SUPPORTED_CURRENCIES = [
   'SAR',
 ] as const;
 const BASE = 'USD';
+/** After a failed fetch, request-path refreshes pause for this long. */
+export const REFRESH_COOLDOWN_MS = 30 * 60 * 1000;
 
 interface RateSnapshot {
   rateDate: string;
@@ -38,6 +40,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 export class CurrencyService implements CurrencyServiceContract {
   private readonly logger = new Logger(CurrencyService.name);
   private inflight: Promise<void> | null = null;
+  /** Time of the last failed fetch; gates request-path refreshes only. */
+  private lastFailedAt = 0;
 
   constructor(
     @InjectModel(ExchangeRate.name) private readonly model: Model<ExchangeRate>,
@@ -97,7 +101,9 @@ export class CurrencyService implements CurrencyServiceContract {
 
   private async getSnapshot(): Promise<RateSnapshot> {
     let latest = await this.latest();
-    if (!latest || (latest.fetchedDate ?? latest.rateDate) !== today()) {
+    const stale =
+      !latest || (latest.fetchedDate ?? latest.rateDate) !== today();
+    if (stale && Date.now() - this.lastFailedAt >= REFRESH_COOLDOWN_MS) {
       await this.refresh();
       latest = await this.latest();
     }
@@ -120,6 +126,7 @@ export class CurrencyService implements CurrencyServiceContract {
   private refresh(): Promise<void> {
     this.inflight ??= this.fetchAndStore()
       .catch((err: unknown) => {
+        this.lastFailedAt = Date.now();
         this.logger.warn(
           `FX fetch failed, keeping cached rates: ${(err as Error).message}`,
         );
