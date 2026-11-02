@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-member-access */
 import {
   BookingStatus,
   BookingType,
@@ -34,10 +34,20 @@ function setup(days: number) {
   const refundModel = {
     create: jest.fn(async (d: any) => ({ id: 'r1', ...d })),
     findOne: jest.fn(async (): Promise<any> => null),
-    findOneAndUpdate: jest.fn(async (): Promise<any> => null),
+    findOneAndUpdate: jest.fn(async (_f: any, u: any): Promise<any> =>
+      u?.$setOnInsert ? { id: 'r1', ...u.$setOnInsert } : null,
+    ),
     findById: jest.fn(),
   };
-  const stripe = { refunds: { create: jest.fn(async () => ({ id: 're_1' })) } };
+  const stripe = {
+    refunds: { create: jest.fn(async () => ({ id: 're_1' })) },
+    paymentIntents: {
+      retrieve: jest.fn(async (): Promise<any> => ({
+        id: 'pi_1',
+        amount_received: 10001,
+      })),
+    },
+  };
   const bookings = { getPayable: jest.fn(async () => view) };
   const notifications = { notify: jest.fn(async () => undefined) };
   const svc = new RefundsService(
@@ -87,13 +97,18 @@ describe('RefundsService.refundFor', () => {
       expect.objectContaining({ payment_intent: 'pi_1', amount: 5000 }),
       expect.anything(),
     );
-    expect(refundModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'PENDING',
-        stripeRefundId: 're_1',
-        amountMinor: 5000,
-        reason: 'USER',
-      }),
+    expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { stripeRefundId: 're_1' },
+      {
+        $setOnInsert: expect.objectContaining({
+          status: 'PENDING',
+          stripeRefundId: 're_1',
+          paymentIntentId: 'pi_1',
+          amountMinor: 5000,
+          reason: 'USER',
+        }),
+      },
+      { upsert: true, new: true },
     );
     expect(notifications.notify).toHaveBeenCalledWith(
       'u1',
@@ -113,13 +128,13 @@ describe('RefundsService.refundFor', () => {
     const { svc, stripe, refundModel, notifications } = setup(1);
     expect(await svc.refundFor(BookingType.HOTEL, 'b1', 'USER')).toBeNull();
     expect(stripe.refunds.create).not.toHaveBeenCalled();
-    expect(refundModel.create).not.toHaveBeenCalled();
+    expect(refundModel.findOneAndUpdate).not.toHaveBeenCalled();
     expect(notifications.notify).not.toHaveBeenCalled();
   });
 });
 
 describe('RefundsService.refundPayment', () => {
-  it('refunds the full payment amount as PROVIDER, PENDING', async () => {
+  it('refunds the full captured amount as PROVIDER, PENDING', async () => {
     const { svc, stripe, refundModel } = setup(0);
     await svc.refundPayment(
       {
@@ -130,19 +145,23 @@ describe('RefundsService.refundPayment', () => {
         amountMinor: 777,
         currency: 'USD',
       } as any,
-      'pi_old',
+      { id: 'pi_old', amount_received: 777 },
       'PROVIDER',
     );
     expect(stripe.refunds.create).toHaveBeenCalledWith(
       expect.objectContaining({ payment_intent: 'pi_old', amount: 777 }),
       { idempotencyKey: 'refund-pi-pi_old' },
     );
-    expect(refundModel.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'PENDING',
-        reason: 'PROVIDER',
-        amountMinor: 777,
-      }),
+    expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
+      { stripeRefundId: 're_1' },
+      {
+        $setOnInsert: expect.objectContaining({
+          status: 'PENDING',
+          reason: 'PROVIDER',
+          amountMinor: 777,
+        }),
+      },
+      expect.anything(),
     );
   });
 });
@@ -162,5 +181,96 @@ describe('RefundsService.applyStripeRefund', () => {
       { status: 'FAILED' },
       expect.anything(),
     );
+  });
+});
+
+describe('PAY-03 F3: refund the amount captured on the PI', () => {
+  it('refundPayment refunds and records amount_received, not amountMinor', async () => {
+    const { svc, stripe, refundModel } = setup(0);
+    await svc.refundPayment(
+      {
+        id: 'pay1',
+        bookingType: BookingType.HOTEL,
+        bookingId: 'b1',
+        userId: 'u1',
+        amountMinor: 777,
+        currency: 'USD',
+      } as any,
+      { id: 'pi_old', amount_received: 500 },
+      'PROVIDER',
+    );
+    expect(stripe.refunds.create).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_intent: 'pi_old', amount: 500 }),
+      { idempotencyKey: 'refund-pi-pi_old' },
+    );
+    const written = JSON.stringify([
+      ...refundModel.create.mock.calls,
+      ...refundModel.findOneAndUpdate.mock.calls,
+    ]);
+    expect(written).toContain('"amountMinor":500');
+    expect(written).not.toContain('"amountMinor":777');
+  });
+  it('refundFor bases the refund on the captured amount of the PI', async () => {
+    const { svc, stripe } = setup(0);
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_1',
+      amount_received: 9000,
+    });
+    await svc.refundFor(BookingType.HOTEL, 'b1', 'PROVIDER');
+    expect(stripe.paymentIntents.retrieve).toHaveBeenCalledWith('pi_1');
+    expect(stripe.refunds.create).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_intent: 'pi_1', amount: 9000 }),
+      expect.anything(),
+    );
+  });
+});
+
+describe('PAY-03 F4: refunds are deduped per PaymentIntent', () => {
+  const pay = {
+    id: 'pay1',
+    bookingType: BookingType.HOTEL,
+    bookingId: 'b1',
+    userId: 'u1',
+    amountMinor: 777,
+    currency: 'USD',
+  } as any;
+  it('refundPayment returns the existing refund of the same PI without calling Stripe', async () => {
+    const { svc, stripe, refundModel } = setup(0);
+    refundModel.findOne.mockImplementation(async (f: any) =>
+      f.paymentIntentId === 'pi_old'
+        ? { id: 'r0', paymentIntentId: 'pi_old', status: 'PENDING' }
+        : null,
+    );
+    const r = await svc.refundPayment(
+      pay,
+      { id: 'pi_old', amount_received: 777 },
+      'PROVIDER',
+    );
+    expect(r?.id).toBe('r0');
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+  });
+  it('records paymentIntentId on the refund', async () => {
+    const { svc, refundModel } = setup(0);
+    await svc.refundPayment(
+      pay,
+      { id: 'pi_old', amount_received: 777 },
+      'PROVIDER',
+    );
+    const written = JSON.stringify([
+      ...refundModel.create.mock.calls,
+      ...refundModel.findOneAndUpdate.mock.calls,
+    ]);
+    expect(written).toContain('"paymentIntentId":"pi_old"');
+  });
+  it('refundFor is not blocked by a refund of another PI on the same booking', async () => {
+    const { svc, stripe, refundModel } = setup(0);
+    refundModel.findOne.mockImplementation(async (f: any) =>
+      f.paymentIntentId === 'pi_1'
+        ? null
+        : { id: 'r_late', paymentIntentId: 'pi_late', status: 'PENDING' },
+    );
+    const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'PROVIDER');
+    expect(stripe.refunds.create).toHaveBeenCalled();
+    expect(r?.id).not.toBe('r_late');
   });
 });

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import {
   BookingStatus,
@@ -135,8 +135,14 @@ describe('PaymentsService.retry', () => {
     currency: 'USD',
     stripeId: 'pi_old',
   };
+  const retryable = (stripe: ReturnType<typeof setup>['stripe']) =>
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_old',
+      status: 'requires_payment_method',
+    });
   it('allows retry for FAILED payment', async () => {
-    const { svc, model } = setup();
+    const { svc, model, stripe } = setup();
+    retryable(stripe);
     model.findById.mockResolvedValue(failed);
     model.findOneAndUpdate.mockResolvedValue({
       ...failed,
@@ -149,6 +155,7 @@ describe('PaymentsService.retry', () => {
   });
   it('cancels the previous PI and records it in history', async () => {
     const { svc, model, stripe } = setup();
+    retryable(stripe);
     model.findById.mockResolvedValue(failed);
     model.findOneAndUpdate.mockResolvedValue({ ...failed, stripeId: 'pi_1' });
     await svc.retry('u1', 'pay1');
@@ -159,8 +166,9 @@ describe('PaymentsService.retry', () => {
       expect.anything(),
     );
   });
-  it('ignores already-canceled/succeeded errors on the old PI', async () => {
+  it('ignores unexpected-state errors when cancelling the old PI', async () => {
     const { svc, model, stripe } = setup();
+    retryable(stripe);
     model.findById.mockResolvedValue(failed);
     model.findOneAndUpdate.mockResolvedValue({ ...failed, stripeId: 'pi_1' });
     stripe.paymentIntents.cancel.mockRejectedValue({
@@ -222,6 +230,12 @@ describe('PaymentsService.handleWebhook', () => {
     model.findOneAndUpdate
       .mockResolvedValueOnce(pay)
       .mockResolvedValueOnce(null);
+    // After the first delivery the booking reports this payment.
+    bookings.getPayable
+      .mockResolvedValueOnce(view())
+      .mockResolvedValueOnce(
+        view({ status: BookingStatus.CONFIRMED, paymentId: 'pay1' }),
+      );
     await svc.handleWebhook(Buffer.from('x'), 's');
     await svc.handleWebhook(Buffer.from('x'), 's');
     expect(bookings.markConfirmed).toHaveBeenCalledTimes(1);
@@ -238,12 +252,18 @@ describe('PaymentsService.handleWebhook', () => {
     model.findOneAndUpdate.mockResolvedValue(pay);
     await svc.handleWebhook(Buffer.from('x'), 's');
     expect(model.findOneAndUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ status: PaymentStatus.PENDING }),
+      expect.objectContaining({
+        status: { $ne: PaymentStatus.SUCCEEDED },
+      }),
       { status: PaymentStatus.SUCCEEDED },
       expect.anything(),
     );
     expect(bookings.markConfirmed).not.toHaveBeenCalled();
-    expect(refunds.refundPayment).toHaveBeenCalledWith(pay, 'pi_1', 'PROVIDER');
+    expect(refunds.refundPayment).toHaveBeenCalledWith(
+      pay,
+      expect.objectContaining({ id: 'pi_1' }),
+      'PROVIDER',
+    );
   });
   it('late success on cancelled booking refunds, no confirm', async () => {
     const { svc, stripe, model, bookings, refunds } = setup(
@@ -276,7 +296,7 @@ describe('PaymentsService.handleWebhook', () => {
     expect(bookings.markConfirmed).not.toHaveBeenCalled();
     expect(refunds.refundPayment).toHaveBeenCalledWith(
       expect.anything(),
-      'pi_old',
+      expect.objectContaining({ id: 'pi_old' }),
       'PROVIDER',
     );
   });
@@ -337,5 +357,164 @@ describe('PaymentsService.cancelForExpiredHold', () => {
     const { svc, stripe } = setup();
     await svc.cancelForExpiredHold(BookingType.HOTEL, 'b1');
     expect(stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+  });
+});
+
+/** Stateful fake of the payment model that honours status filters. */
+function statefulPayment(setupResult: ReturnType<typeof setup>, doc: any) {
+  const state = { ...doc };
+  const matches = (f: any) => {
+    if (f.stripeId && f.stripeId !== state.stripeId) return false;
+    if (f.status === undefined) return true;
+    if (typeof f.status === 'string') return f.status === state.status;
+    if (f.status.$in) return f.status.$in.includes(state.status);
+    if (f.status.$ne) return f.status.$ne !== state.status;
+    return false;
+  };
+  setupResult.model.findOne.mockImplementation(async () => ({ ...state }));
+  setupResult.model.findById.mockImplementation(async () => ({ ...state }));
+  setupResult.model.findOneAndUpdate.mockImplementation(
+    async (f: any, u: any) => {
+      if (!matches(f)) return null;
+      const rest = { ...u };
+      delete rest.$addToSet;
+      Object.assign(state, rest);
+      return { ...state };
+    },
+  );
+  return state;
+}
+
+describe('PAY-01 F1: success on FAILED payment / retry guard', () => {
+  const base = {
+    id: 'pay1',
+    userId: 'u1',
+    bookingType: 'FLIGHT',
+    bookingId: 'b1',
+    stripeId: 'pi_1',
+    amountMinor: 12345,
+    currency: 'USD',
+  };
+  it('success for the current PI on a FAILED payment confirms the booking', async () => {
+    const s = setup();
+    const state = statefulPayment(s, { ...base, status: 'FAILED' });
+    s.stripe.webhooks.constructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_1',
+      status: 'succeeded',
+      amount_received: 12345,
+    });
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(state.status).toBe(PaymentStatus.SUCCEEDED);
+    expect(s.bookings.markConfirmed).toHaveBeenCalledWith(
+      'FLIGHT',
+      'b1',
+      'pay1',
+    );
+  });
+  it.each(['succeeded', 'processing'])(
+    'retry 409s when the old PI is %s, without cancelling or creating',
+    async (piStatus) => {
+      const s = setup();
+      s.model.findById.mockResolvedValue({
+        ...base,
+        stripeId: 'pi_old',
+        status: 'FAILED',
+      });
+      s.model.findOneAndUpdate.mockResolvedValue({ ...base });
+      s.stripe.paymentIntents.retrieve.mockResolvedValue({
+        id: 'pi_old',
+        status: piStatus,
+      });
+      await expect(s.svc.retry('u1', 'pay1')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+      expect(s.stripe.paymentIntents.retrieve).toHaveBeenCalledWith('pi_old');
+      expect(s.stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+      expect(s.stripe.paymentIntents.create).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('PAY-01 F2: late-refund path is retry-safe on redelivery', () => {
+  it('redelivery after a failed refund attempt refunds again', async () => {
+    const s = setup(view({ holdExpiresAt: new Date(Date.now() - 1000) }));
+    const state = statefulPayment(s, {
+      id: 'pay1',
+      userId: 'u1',
+      bookingType: 'FLIGHT',
+      bookingId: 'b1',
+      stripeId: 'pi_1',
+      amountMinor: 12345,
+      currency: 'USD',
+      status: 'PENDING',
+    });
+    s.stripe.webhooks.constructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_1',
+      status: 'succeeded',
+      amount_received: 12345,
+    });
+    s.refunds.refundPayment
+      .mockRejectedValueOnce(new Error('stripe down'))
+      .mockResolvedValueOnce({ id: 'r1' });
+    await expect(s.svc.handleWebhook(Buffer.from('x'), 's')).rejects.toThrow(
+      'stripe down',
+    );
+    expect(state.status).toBe(PaymentStatus.SUCCEEDED);
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.refunds.refundPayment).toHaveBeenCalledTimes(2);
+    expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+  });
+  it('redelivery when booking was confirmed by this payment does nothing', async () => {
+    const s = setup(
+      view({ status: BookingStatus.CONFIRMED, paymentId: 'pay1' }),
+    );
+    statefulPayment(s, {
+      id: 'pay1',
+      bookingType: 'FLIGHT',
+      bookingId: 'b1',
+      stripeId: 'pi_1',
+      status: 'SUCCEEDED',
+    });
+    s.stripe.webhooks.constructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.refunds.refundPayment).not.toHaveBeenCalled();
+    expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+  });
+});
+
+describe('PAY-01 F3: late refund uses the captured PI', () => {
+  it('passes the re-retrieved PI (amount_received) to refundPayment', async () => {
+    const s = setup(view({ status: BookingStatus.EXPIRED }));
+    statefulPayment(s, {
+      id: 'pay1',
+      bookingType: 'FLIGHT',
+      bookingId: 'b1',
+      stripeId: 'pi_1',
+      amountMinor: 12345,
+      status: 'PENDING',
+    });
+    s.stripe.webhooks.constructEvent.mockReturnValue({
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_1' } },
+    });
+    const fresh = { id: 'pi_1', status: 'succeeded', amount_received: 999 };
+    s.stripe.paymentIntents.retrieve.mockResolvedValue(fresh);
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.refunds.refundPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'pay1' }),
+      fresh,
+      'PROVIDER',
+    );
   });
 });

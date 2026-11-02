@@ -38,7 +38,10 @@ export class Refund {
   @Prop({ required: true, index: true }) bookingId: string;
   @Prop({ required: true }) userId: string;
   @Prop({ required: true }) paymentId: string;
-  @Prop({ type: String, default: null, index: true })
+  /** The PaymentIntent refunded; refunds are deduped per PI. */
+  @Prop({ type: String, required: true, index: true })
+  paymentIntentId: string;
+  @Prop({ type: String, default: null })
   stripeRefundId: string | null;
   @Prop({ required: true }) amountMinor: number;
   @Prop({ required: true, default: 'USD' }) currency: string;
@@ -54,3 +57,11 @@ export class Refund {
 }
 export type RefundDocument = HydratedDocument<Refund>;
 export const RefundSchema = SchemaFactory.createForClass(Refund);
+/** One local record per Stripe refund, even under concurrent webhooks. */
+RefundSchema.index(
+  { stripeRefundId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { stripeRefundId: { $type: 'string' } },
+  },
+);

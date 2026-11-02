@@ -62,96 +62,124 @@ export class RefundsService implements RefundsServiceContract {
     reason: RefundReason,
   ): Promise<RefundRecord | null> {
     const view = await this.bookings.getPayable(type, bookingId);
-    const payment = await this.payments.findOne({
-      bookingType: type,
-      bookingId,
-      status: PaymentStatus.SUCCEEDED,
-    });
+    // Prefer the payment that confirmed the booking; other SUCCEEDED
+    // payments of the booking are late/superseded and refunded separately.
+    const payment = await this.payments.findOne(
+      view.paymentId
+        ? { _id: view.paymentId, status: PaymentStatus.SUCCEEDED }
+        : { bookingType: type, bookingId, status: PaymentStatus.SUCCEEDED },
+    );
     if (!payment) return null;
 
-    const existing = await this.refunds.findOne({
-      bookingType: type,
-      bookingId,
-      status: { $ne: RefundStatus.FAILED },
-    });
+    const existing = await this.activeRefundFor(payment.stripeId);
     if (existing) return toRecord(existing);
 
+    const pi = await this.stripe.paymentIntents.retrieve(payment.stripeId);
+    const captured = pi.amount_received;
     let amountMinor: MinorUnits;
     if (reason === 'PROVIDER') {
-      amountMinor = payment.amountMinor;
+      amountMinor = captured;
     } else {
       const days = daysRemaining(view.serviceStartsAt, view.timeZone);
       amountMinor = this.quote(
         { tiers: view.policySnapshot?.tiers ?? [] },
         days,
-        payment.amountMinor,
+        captured,
       ).amountMinor;
     }
-    if (amountMinor <= 0) return null;
+    if (!(amountMinor > 0)) return null;
 
-    const sr = await this.stripe.refunds.create(
-      {
-        payment_intent: payment.stripeId,
-        amount: amountMinor,
-        metadata: { bookingType: type, bookingId, reason },
-      },
-      { idempotencyKey: `refund-${type}-${bookingId}` },
-    );
-    const doc = await this.refunds.create({
-      bookingType: type,
-      bookingId,
-      userId: view.userId,
-      paymentId: String(payment.id ?? payment._id),
-      stripeRefundId: sr.id,
+    const doc = await this.issue(
+      payment,
+      payment.stripeId,
       amountMinor,
-      currency: payment.currency,
       reason,
-      status: RefundStatus.PENDING,
-    });
+      `refund-pi-${payment.stripeId}-${reason}`,
+      view.userId,
+    );
     await this.notifications.notify(view.userId, {
       type: 'REFUND_ISSUED',
       title: 'Refund initiated',
       body: `A refund of ${(amountMinor / 100).toFixed(2)} ${payment.currency} was initiated.`,
-      link: `/refunds/${String(doc.id)}`,
+      link: `/refunds/${String(doc.id ?? doc._id)}`,
     });
     return toRecord(doc);
   }
 
   /**
-   * Full refund of one PaymentIntent of a payment, independent of the
-   * booking (late or superseded payments). Idempotent per PI id.
+   * Full refund of the amount captured on one PaymentIntent of a payment,
+   * independent of the booking (late or superseded payments). Idempotent
+   * per PI id: a redelivered webhook returns the existing refund.
    */
   async refundPayment(
     payment: PaymentDocument,
-    paymentIntentId: string,
+    intent: Pick<Stripe.PaymentIntent, 'id' | 'amount_received'>,
     reason: RefundReason,
-  ): Promise<RefundRecord> {
+  ): Promise<RefundRecord | null> {
+    const existing = await this.activeRefundFor(intent.id);
+    if (existing) return toRecord(existing);
+    const amountMinor = intent.amount_received;
+    if (!(amountMinor > 0)) return null;
+    const doc = await this.issue(
+      payment,
+      intent.id,
+      amountMinor,
+      reason,
+      `refund-pi-${intent.id}`,
+      payment.userId,
+    );
+    return toRecord(doc);
+  }
+
+  private activeRefundFor(paymentIntentId: string) {
+    return this.refunds.findOne({
+      paymentIntentId,
+      status: { $ne: RefundStatus.FAILED },
+    });
+  }
+
+  /** Creates the Stripe refund and upserts its local record (by refund id). */
+  private async issue(
+    payment: PaymentDocument,
+    paymentIntentId: string,
+    amountMinor: MinorUnits,
+    reason: RefundReason,
+    idempotencyKey: string,
+    userId: string,
+  ): Promise<RefundDocument> {
     const sr = await this.stripe.refunds.create(
       {
         payment_intent: paymentIntentId,
-        amount: payment.amountMinor,
+        amount: amountMinor,
         metadata: {
           bookingType: payment.bookingType,
           bookingId: payment.bookingId,
+          paymentIntentId,
           reason,
         },
       },
-      { idempotencyKey: `refund-pi-${paymentIntentId}` },
+      { idempotencyKey },
     );
-    const existing = await this.refunds.findOne({ stripeRefundId: sr.id });
-    if (existing) return toRecord(existing);
-    const doc = await this.refunds.create({
+    const fields = {
       bookingType: payment.bookingType,
       bookingId: payment.bookingId,
-      userId: payment.userId,
-      paymentId: String(payment.id),
+      userId,
+      paymentId: String(payment.id ?? payment._id),
+      paymentIntentId,
       stripeRefundId: sr.id,
-      amountMinor: payment.amountMinor,
+      amountMinor,
       currency: payment.currency,
       reason,
       status: RefundStatus.PENDING,
-    });
-    return toRecord(doc);
+    };
+    const doc = await this.refunds.findOneAndUpdate(
+      { stripeRefundId: sr.id },
+      { $setOnInsert: fields },
+      { upsert: true, new: true },
+    );
+    // upsert + new always yields a document; guard anyway.
+    if (!doc) throw new Error(`Refund ${sr.id} was not recorded`);
+    return doc;
   }
 
   /** Webhook: refund.updated / charge.refund.updated. */

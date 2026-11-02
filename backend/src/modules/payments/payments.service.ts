@@ -94,6 +94,14 @@ export class PaymentsService implements PaymentsServiceContract {
       payment.bookingId,
     );
     this.assertPayable(view);
+    // A FAILED status can be stale (out-of-order events, re-confirmed PI):
+    // never open a second intent while the old one has or may take money.
+    const old = await this.stripe.paymentIntents.retrieve(payment.stripeId);
+    if (old.status === 'succeeded' || old.status === 'processing') {
+      throw new ConflictException(
+        'The previous payment attempt is still being processed or succeeded',
+      );
+    }
     await this.cancelIntent(payment.stripeId);
     const pi = await this.newIntent(
       payment.bookingType,
@@ -197,52 +205,71 @@ export class PaymentsService implements PaymentsServiceContract {
     const payment = await this.model.findOne({
       $or: [{ stripeId: intent.id }, { stripeIdHistory: intent.id }],
     });
-    if (!payment) return;
+    if (!payment) {
+      this.logger.error(
+        `payment_intent.succeeded for unknown PaymentIntent ${intent.id}`,
+      );
+      return;
+    }
     // Never trust the event body alone: re-read the intent from Stripe.
     const fresh = await this.stripe.paymentIntents.retrieve(intent.id);
     if (fresh.status !== 'succeeded') return;
 
     if (payment.stripeId !== intent.id) {
       // Superseded by a retry: money was taken twice. Never confirm.
+      // refundPayment is idempotent per PI, so redelivery is safe.
       this.logger.warn(
         `Superseded PaymentIntent ${intent.id} succeeded for payment ${String(payment.id)}; refunding`,
       );
-      await this.refunds.refundPayment(payment, intent.id, 'PROVIDER');
+      await this.refunds.refundPayment(payment, fresh, 'PROVIDER');
       return;
     }
 
-    // Atomic transition from PENDING only; first delivery wins.
+    // Money was captured on the current PI: whatever the local status
+    // (PENDING, a stale FAILED, CANCELLED), record it as SUCCEEDED.
+    // Atomic: only the first delivery performs the transition.
     const won = await this.model.findOneAndUpdate(
       {
         _id: payment.id,
         stripeId: intent.id,
-        status: PaymentStatus.PENDING,
+        status: { $ne: PaymentStatus.SUCCEEDED },
       },
       { status: PaymentStatus.SUCCEEDED },
       { new: true },
     );
-    if (!won) return;
 
     const view = await this.bookings.getPayable(
       payment.bookingType,
       payment.bookingId,
     );
-    if (
-      view.status !== BookingStatus.PENDING_PAYMENT ||
-      !view.holdExpiresAt ||
-      view.holdExpiresAt.getTime() <= Date.now()
-    ) {
-      this.logger.warn(
-        `Late payment ${String(payment.id)} for non-payable booking ${payment.bookingId}; refunding`,
+    const paymentId = String(payment.id);
+    // Already settled by an earlier delivery (or later cancelled and
+    // refunded through RefundsService.refundFor): nothing to do.
+    if (view.paymentId === paymentId) return;
+
+    if (this.isPayable(view)) {
+      // markConfirmed is idempotent per paymentId; a redelivery after a
+      // crash between the transition and this call completes the work.
+      if (!won) {
+        this.logger.warn(
+          `Completing confirmation of booking ${payment.bookingId} for payment ${paymentId} on redelivery`,
+        );
+      }
+      await this.bookings.markConfirmed(
+        payment.bookingType,
+        payment.bookingId,
+        paymentId,
       );
-      await this.refunds.refundPayment(won, intent.id, 'PROVIDER');
       return;
     }
-    await this.bookings.markConfirmed(
-      payment.bookingType,
-      payment.bookingId,
-      String(payment.id),
+
+    // Booking is no longer payable (expired, cancelled, or confirmed by
+    // another payment): give the captured money back. Runs on every
+    // delivery until it succeeds; refundPayment dedupes per PI.
+    this.logger.warn(
+      `Late payment ${paymentId} for non-payable booking ${payment.bookingId}; refunding`,
     );
+    await this.refunds.refundPayment(won ?? payment, fresh, 'PROVIDER');
   }
 
   private async onFailed(intent: Stripe.PaymentIntent): Promise<void> {
@@ -319,6 +346,14 @@ export class PaymentsService implements PaymentsServiceContract {
       throw new NotFoundException('Payment not found');
     }
     return p;
+  }
+
+  private isPayable(view: PayableBookingView): boolean {
+    return (
+      view.status === BookingStatus.PENDING_PAYMENT &&
+      !!view.holdExpiresAt &&
+      view.holdExpiresAt.getTime() > Date.now()
+    );
   }
 
   private assertPayable(view: PayableBookingView): void {
