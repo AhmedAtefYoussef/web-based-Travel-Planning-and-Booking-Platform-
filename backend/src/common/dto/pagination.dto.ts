@@ -1,8 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Equals, IsInt, IsOptional, Min } from 'class-validator';
 
 export const DEFAULT_PAGE_SIZE = 10;
-export const MAX_PAGE_SIZE = 100;
 
 /** `?page=N` (1-based). Page size is fixed at 10 unless a module overrides. */
 export class PaginationQueryDto {
@@ -12,11 +11,10 @@ export class PaginationQueryDto {
   @Min(1)
   page: number = 1;
 
+  /** Fixed at 10: any other client-sent `limit` is rejected. */
   @IsOptional()
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(MAX_PAGE_SIZE)
+  @Equals(DEFAULT_PAGE_SIZE)
   limit: number = DEFAULT_PAGE_SIZE;
 }
 
