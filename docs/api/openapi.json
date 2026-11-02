@@ -1,0 +1,299 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/admin/audit-logs": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/api/uploads/{filename}": {
+      "get": {
+        "operationId": "UploadsController_serve",
+        "parameters": [
+          {
+            "name": "filename",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "uploads"
+        ]
+      }
+    },
+    "/api/currencies": {
+      "get": {
+        "operationId": "CurrencyController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "currency"
+        ]
+      }
+    },
+    "/api/currencies/rates": {
+      "get": {
+        "operationId": "CurrencyController_rates",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "currency"
+        ]
+      }
+    },
+    "/api/bookings/{type}/{id}/policies": {
+      "get": {
+        "operationId": "BookingPoliciesController_policies",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/bookings/{type}/{id}/accept-policies": {
+      "post": {
+        "operationId": "BookingPoliciesController_accept",
+        "parameters": [
+          {
+            "name": "type",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptPoliciesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "bookings"
+        ]
+      }
+    },
+    "/api/payments": {
+      "post": {
+        "operationId": "PaymentsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePaymentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/webhook": {
+      "post": {
+        "operationId": "PaymentsController_webhook",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}/retry": {
+      "post": {
+        "operationId": "PaymentsController_retry",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}/test-confirm": {
+      "post": {
+        "operationId": "PaymentsController_testConfirm",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/payments/{id}": {
+      "get": {
+        "operationId": "PaymentsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "payments"
+        ]
+      }
+    },
+    "/api/refunds/{id}": {
+      "get": {
+        "operationId": "RefundsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "refunds"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Travel Planning and Booking API",
+    "description": "",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "bearer": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      }
+    },
+    "schemas": {
+      "AcceptPoliciesDto": {
+        "type": "object",
+        "properties": {}
+      },
+      "CreatePaymentDto": {
+        "type": "object",
+        "properties": {}
+      }
+    }
+  }
+}
