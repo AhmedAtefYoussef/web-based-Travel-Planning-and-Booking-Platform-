@@ -1,7 +1,7 @@
 # Entity-relationship diagram (Milestone 1)
 
 Source: `docs/requirements/plan.md` "Data model". Amounts are integer minor units (USD cents); all times are stored in UTC.
-`payments` and `refunds` are described "per contract" (plan data model and the Wave 1 API contract); their schemas were not merged when this was written.
+`payments` and `refunds` match the merged Mongoose schemas in `backend/src/modules/payments/schemas.ts`.
 
 ## Owners
 
@@ -211,21 +211,30 @@ erDiagram
     PAYMENTS {
         ObjectId _id PK
         string bookingType "FLIGHT|HOTEL"
-        ObjectId bookingId FK
-        string stripeId UK
+        string bookingId FK "indexed"
+        string userId "owner"
+        string stripeId "indexed, current PaymentIntent"
+        array stripeIdHistory "PaymentIntents superseded by retries"
         int amountMinor
-        string currency
-        string status "REQUIRES_PAYMENT|SUCCEEDED|FAILED|CANCELED"
+        string currency "PLATFORM_CURRENCY, default USD"
+        string status "PENDING|SUCCEEDED|FAILED|CANCELLED"
+        date createdAt
+        date updatedAt
     }
     REFUNDS {
         ObjectId _id PK
         string bookingType "FLIGHT|HOTEL"
-        ObjectId bookingId FK
-        string stripeId UK
+        string bookingId FK "indexed"
+        string userId "owner"
+        string paymentId FK "payments._id"
+        string paymentIntentId "indexed, one refund per PI"
+        string stripeRefundId UK "nullable, partial unique index"
         int amountMinor
-        string currency
+        string currency "PLATFORM_CURRENCY, default USD"
+        string reason "USER|PROVIDER"
         string status "PENDING|REFUNDED|FAILED"
-        int refundPercent
+        date createdAt
+        date updatedAt
     }
     EXCHANGE_RATES {
         ObjectId _id PK
@@ -329,6 +338,8 @@ erDiagram
 ## Notes
 
 - Every collection has `timestamps: true` except `audit_logs` (`createdAt` only, immutable).
-- `payments` and `refunds` reference a booking by `bookingType` plus `bookingId` (polymorphic), so the diagram shows both booking collections.
+- `payments` and `refunds` reference a booking by `bookingType` plus `bookingId` (polymorphic), so the diagram shows both booking collections. Ids are stored as strings in these two collections.
+- Only `stripeId`, `amountMinor`, `currency` and `status` describe the payment itself (PAY-01); no card data is stored. A retry creates a new PaymentIntent and moves the old id into `stripeIdHistory`.
+- `refunds.paymentIntentId` is deduplicated in code (one refund per PaymentIntent) and `stripeRefundId` has a partial unique index, so concurrent webhooks cannot create two records for one Stripe refund. `refunds.amountMinor` is based on the amount captured on the PaymentIntent.
 - Unique indexes enforce the race-sensitive rules: one like per user and post, one review per reservation, one report per item and reporter, and `room_nights (roomId, date)` against overlapping room bookings.
 - `exchange_rates` keeps every snapshot; the latest is the fallback when the FX API fails.
