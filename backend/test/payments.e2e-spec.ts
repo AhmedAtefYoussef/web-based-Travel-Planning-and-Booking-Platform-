@@ -533,7 +533,9 @@ describe('Payments, policies and refunds (e2e)', () => {
           Date.now() + daysAway * 86_400_000 + hoursExtra * 3_600_000,
         ),
       });
-      t.stripe.intents.get(piId)!.status = 'succeeded';
+      const intent = t.stripe.intents.get(piId)!;
+      intent.status = 'succeeded';
+      intent.amount_received = intent.amount; // Stripe reports captured funds
       await sendWebhook(
         signedEvent('payment_intent.succeeded', succeeded(piId)),
       ).expect(200);

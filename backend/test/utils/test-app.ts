@@ -39,6 +39,7 @@ export interface FakeIntent {
   amount: number;
   currency: string;
   status: string;
+  amount_received: number;
   client_secret: string;
   metadata: Record<string, string>;
 }
@@ -60,6 +61,7 @@ export function createFakeStripe() {
           amount: params.amount,
           currency: params.currency,
           status: 'requires_payment_method',
+          amount_received: 0,
           client_secret: `pi_e2e_${seq}_secret_x${seq}`,
           metadata: params.metadata ?? {},
         };
@@ -80,6 +82,7 @@ export function createFakeStripe() {
       confirm: jest.fn((id: string) => {
         const pi = intents.get(id)!;
         pi.status = 'succeeded';
+        pi.amount_received = pi.amount;
         return Promise.resolve({ ...pi });
       }),
       cancel: jest.fn((id: string) => {
@@ -222,7 +225,7 @@ export interface TestAppOptions {
 /**
  * Boots the real AppModule against an in-memory Mongo replica set. Env must
  * be set before AppModule is imported (ConfigModule validates at import), so
- * app code is imported dynamically.
+ * app code is loaded with require() (ts-jest rejects dynamic import()).
  */
 export async function createTestApp(
   opts: TestAppOptions = {},
@@ -243,10 +246,13 @@ export async function createTestApp(
     UPLOAD_DIR: uploadDir,
   });
 
-  const { AppModule } = await import('../../src/app.module');
-  const { STRIPE_CLIENT } =
-    await import('../../src/modules/payments/stripe.provider');
-  const { setupApp } = await import('../../src/bootstrap/setup-app');
+  /* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access */
+  const { AppModule } = require('../../src/app.module');
+  const {
+    STRIPE_CLIENT,
+  } = require('../../src/modules/payments/stripe.provider');
+  const { setupApp } = require('../../src/bootstrap/setup-app');
+  /* eslint-enable @typescript-eslint/no-require-imports, @typescript-eslint/no-unsafe-member-access */
 
   const stripe = createFakeStripe();
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })

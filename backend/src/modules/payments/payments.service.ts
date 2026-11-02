@@ -23,6 +23,7 @@ import {
   PaymentsService as PaymentsServiceContract,
 } from '../../common/contracts/payments.contract';
 import { PAYABLE_BOOKING } from '../../common/contracts/tokens';
+import { isValidMinor } from '../../common/utils/money';
 import { Payment, PaymentDocument } from './schemas';
 import { RefundsService } from './refunds.service';
 import { STRIPE_CLIENT } from './stripe.provider';
@@ -362,6 +363,11 @@ export class PaymentsService implements PaymentsServiceContract {
     }
     if (!view.holdExpiresAt || view.holdExpiresAt.getTime() <= Date.now()) {
       throw new ConflictException('Booking hold has expired');
+    }
+    // PAY-04: money is integer minor units; never open an intent for a
+    // negative, fractional or zero total.
+    if (!isValidMinor(view.totalMinor) || view.totalMinor <= 0) {
+      throw new ConflictException('Booking total is not a valid amount');
     }
   }
 }
