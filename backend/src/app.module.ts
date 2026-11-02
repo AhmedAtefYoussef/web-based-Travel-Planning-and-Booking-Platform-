@@ -9,6 +9,7 @@ import { ContractStubsModule } from './common/stubs/contract-stubs.module';
 import { validateEnv } from './config/env.schema';
 import { AuditModule } from './modules/audit/audit.module';
 import { CurrencyModule } from './modules/currency/currency.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { UploadsModule } from './modules/uploads/uploads.module';
     AuditModule,
     UploadsModule,
     CurrencyModule,
+    PaymentsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: DevAuthGuard }],
 })
