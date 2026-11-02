@@ -1,0 +1,73 @@
+================================================
+Date: 2026-10-30
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-13, GEN-02, GEN-05
+Prompt:
+Scaffold the NestJS backend for Milestone 1: project layout, contract interfaces
+and DI tokens for booking, payments, refunds, policies, currency, audit and
+uploads, plus stubs so teammates can build modules in parallel.
+How the output was used:
+Used the generated scaffold and contract files as the shared base. I reviewed
+the interfaces against the engineering plan and merged them through a pull request.
+================================================
+
+================================================
+Date: 2026-10-31
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-13, GEN-02, GEN-05, ACC-11
+Prompt:
+Build the foundation layer: global ValidationPipe with whitelist and
+forbidNonWhitelisted, one exception filter with the agreed error shape
+(fieldErrors, duplicate key to 409, bad ObjectId to 400), pagination DTO with
+fixed page size 10, Swagger setup, cookie-parser, rawBody, Mongo connection,
+env validation with Joi, and an opt-in dev auth guard.
+How the output was used:
+Used the code and its unit tests after reading it. I changed the dev auth guard
+to require DEV_AUTH_ENABLED=true so it can never run in production.
+================================================
+
+================================================
+Date: 2026-11-01
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-07, GEN-08, ITN-18
+Prompt:
+Implement the audit log (append-only), JPG/PNG image uploads checked by MIME type
+and magic bytes with a 5 MB limit, and daily exchange-rate caching with fallback
+to the last cached rates.
+How the output was used:
+Used the modules as the base for Ahmed's shared services. I fixed the FX refresh
+cooldown found in review and verified behaviour with the tests.
+================================================
+
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: PAY-01, PAY-03, PAY-04
+Prompt:
+Implement Stripe payments: PaymentIntent creation, policy acceptance, a webhook
+verified with the raw body that confirms the booking exactly once, retry after
+failure, refunds from cancellation tiers, and a dev-only test-confirm endpoint.
+How the output was used:
+Used the explanation of webhook idempotency and raw-body verification to design
+the payments module; the tests mock Stripe. Details of that module are in
+docs/architecture/adr-003-payments-webhook.md.
+================================================
+
+================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: Milestone 1 deliverables (README, ERD, ADRs)
+Prompt:
+Write the Milestone 1 documentation from the engineering plan and the merged
+code: a Mermaid ERD of all collections with owners, four ADRs (auth cookies,
+inventory concurrency, payments webhook, money and time), a README with setup,
+Swagger, Stripe CLI and test instructions, and this prompt log.
+How the output was used:
+Used as the first draft of the documents, then checked the commands against
+backend/package.json and the facts against the plan and code.
+================================================
