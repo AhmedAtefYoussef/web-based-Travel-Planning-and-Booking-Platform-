@@ -118,6 +118,35 @@ describe('RefundsService.refundFor', () => {
   });
 });
 
+describe('RefundsService.refundPayment', () => {
+  it('refunds the full payment amount as PROVIDER, PENDING', async () => {
+    const { svc, stripe, refundModel } = setup(0);
+    await svc.refundPayment(
+      {
+        id: 'pay1',
+        bookingType: BookingType.HOTEL,
+        bookingId: 'b1',
+        userId: 'u1',
+        amountMinor: 777,
+        currency: 'USD',
+      } as any,
+      'pi_old',
+      'PROVIDER',
+    );
+    expect(stripe.refunds.create).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_intent: 'pi_old', amount: 777 }),
+      { idempotencyKey: 'refund-pi-pi_old' },
+    );
+    expect(refundModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'PENDING',
+        reason: 'PROVIDER',
+        amountMinor: 777,
+      }),
+    );
+  });
+});
+
 describe('RefundsService.applyStripeRefund', () => {
   it('maps statuses', async () => {
     const { svc, refundModel } = setup(0);

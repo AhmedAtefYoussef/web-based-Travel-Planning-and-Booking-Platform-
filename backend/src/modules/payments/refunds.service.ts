@@ -117,6 +117,43 @@ export class RefundsService implements RefundsServiceContract {
     return toRecord(doc);
   }
 
+  /**
+   * Full refund of one PaymentIntent of a payment, independent of the
+   * booking (late or superseded payments). Idempotent per PI id.
+   */
+  async refundPayment(
+    payment: PaymentDocument,
+    paymentIntentId: string,
+    reason: RefundReason,
+  ): Promise<RefundRecord> {
+    const sr = await this.stripe.refunds.create(
+      {
+        payment_intent: paymentIntentId,
+        amount: payment.amountMinor,
+        metadata: {
+          bookingType: payment.bookingType,
+          bookingId: payment.bookingId,
+          reason,
+        },
+      },
+      { idempotencyKey: `refund-pi-${paymentIntentId}` },
+    );
+    const existing = await this.refunds.findOne({ stripeRefundId: sr.id });
+    if (existing) return toRecord(existing);
+    const doc = await this.refunds.create({
+      bookingType: payment.bookingType,
+      bookingId: payment.bookingId,
+      userId: payment.userId,
+      paymentId: String(payment.id),
+      stripeRefundId: sr.id,
+      amountMinor: payment.amountMinor,
+      currency: payment.currency,
+      reason,
+      status: RefundStatus.PENDING,
+    });
+    return toRecord(doc);
+  }
+
   /** Webhook: refund.updated / charge.refund.updated. */
   async applyStripeRefund(refund: Stripe.Refund): Promise<void> {
     let status: RefundStatus | null = null;

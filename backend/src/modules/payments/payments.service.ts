@@ -94,6 +94,7 @@ export class PaymentsService implements PaymentsServiceContract {
       payment.bookingId,
     );
     this.assertPayable(view);
+    await this.cancelIntent(payment.stripeId);
     const pi = await this.newIntent(
       payment.bookingType,
       payment.bookingId,
@@ -106,6 +107,7 @@ export class PaymentsService implements PaymentsServiceContract {
         stripeId: pi.id,
         status: PaymentStatus.PENDING,
         amountMinor: view.totalMinor,
+        $addToSet: { stripeIdHistory: payment.stripeId },
       },
       { new: true },
     );
@@ -192,18 +194,50 @@ export class PaymentsService implements PaymentsServiceContract {
   }
 
   private async onSucceeded(intent: Stripe.PaymentIntent): Promise<void> {
-    const payment = await this.model.findOne({ stripeId: intent.id });
+    const payment = await this.model.findOne({
+      $or: [{ stripeId: intent.id }, { stripeIdHistory: intent.id }],
+    });
     if (!payment) return;
     // Never trust the event body alone: re-read the intent from Stripe.
     const fresh = await this.stripe.paymentIntents.retrieve(intent.id);
     if (fresh.status !== 'succeeded') return;
-    // Atomic transition: only the first delivery wins.
+
+    if (payment.stripeId !== intent.id) {
+      // Superseded by a retry: money was taken twice. Never confirm.
+      this.logger.warn(
+        `Superseded PaymentIntent ${intent.id} succeeded for payment ${String(payment.id)}; refunding`,
+      );
+      await this.refunds.refundPayment(payment, intent.id, 'PROVIDER');
+      return;
+    }
+
+    // Atomic transition from PENDING only; first delivery wins.
     const won = await this.model.findOneAndUpdate(
-      { _id: payment.id, status: { $ne: PaymentStatus.SUCCEEDED } },
+      {
+        _id: payment.id,
+        stripeId: intent.id,
+        status: PaymentStatus.PENDING,
+      },
       { status: PaymentStatus.SUCCEEDED },
       { new: true },
     );
     if (!won) return;
+
+    const view = await this.bookings.getPayable(
+      payment.bookingType,
+      payment.bookingId,
+    );
+    if (
+      view.status !== BookingStatus.PENDING_PAYMENT ||
+      !view.holdExpiresAt ||
+      view.holdExpiresAt.getTime() <= Date.now()
+    ) {
+      this.logger.warn(
+        `Late payment ${String(payment.id)} for non-payable booking ${payment.bookingId}; refunding`,
+      );
+      await this.refunds.refundPayment(won, intent.id, 'PROVIDER');
+      return;
+    }
     await this.bookings.markConfirmed(
       payment.bookingType,
       payment.bookingId,
@@ -224,6 +258,19 @@ export class PaymentsService implements PaymentsServiceContract {
       payment.bookingType,
       payment.bookingId,
     );
+  }
+
+  /** Cancels a PI, tolerating "already canceled/succeeded" states. */
+  private async cancelIntent(stripeId: string): Promise<void> {
+    try {
+      await this.stripe.paymentIntents.cancel(stripeId);
+    } catch (err) {
+      if (
+        (err as { code?: string }).code !== 'payment_intent_unexpected_state'
+      ) {
+        throw err;
+      }
+    }
   }
 
   private newIntent(

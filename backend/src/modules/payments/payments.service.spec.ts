@@ -48,7 +48,7 @@ function setup(v = view()) {
     markPaymentFailed: jest.fn(async () => undefined),
     recordPolicyAcceptance: jest.fn(),
   };
-  const refunds = { applyStripeRefund: jest.fn() };
+  const refunds = { applyStripeRefund: jest.fn(), refundPayment: jest.fn() };
   const config = {
     get: (k: string) => (k === 'STRIPE_WEBHOOK_SECRET' ? 'whsec_x' : 'test'),
   };
@@ -147,6 +147,27 @@ describe('PaymentsService.retry', () => {
     expect(r.clientSecret).toBe('cs_1');
     expect(r.paymentId).toBe('pay1');
   });
+  it('cancels the previous PI and records it in history', async () => {
+    const { svc, model, stripe } = setup();
+    model.findById.mockResolvedValue(failed);
+    model.findOneAndUpdate.mockResolvedValue({ ...failed, stripeId: 'pi_1' });
+    await svc.retry('u1', 'pay1');
+    expect(stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_old');
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ $addToSet: { stripeIdHistory: 'pi_old' } }),
+      expect.anything(),
+    );
+  });
+  it('ignores already-canceled/succeeded errors on the old PI', async () => {
+    const { svc, model, stripe } = setup();
+    model.findById.mockResolvedValue(failed);
+    model.findOneAndUpdate.mockResolvedValue({ ...failed, stripeId: 'pi_1' });
+    stripe.paymentIntents.cancel.mockRejectedValue({
+      code: 'payment_intent_unexpected_state',
+    });
+    await expect(svc.retry('u1', 'pay1')).resolves.toBeDefined();
+  });
   it('409 when not FAILED', async () => {
     const { svc, model } = setup();
     model.findById.mockResolvedValue({ ...failed, status: 'PENDING' });
@@ -205,6 +226,59 @@ describe('PaymentsService.handleWebhook', () => {
     await svc.handleWebhook(Buffer.from('x'), 's');
     expect(bookings.markConfirmed).toHaveBeenCalledTimes(1);
     expect(bookings.markConfirmed).toHaveBeenCalledWith('FLIGHT', 'b1', 'pay1');
+  });
+  it('late success on expired booking refunds fully, no confirm', async () => {
+    const { svc, stripe, model, bookings, refunds } = setup(
+      view({ holdExpiresAt: new Date(Date.now() - 1000) }),
+    );
+    stripe.webhooks.constructEvent.mockReturnValue(
+      ev('payment_intent.succeeded'),
+    );
+    model.findOne.mockResolvedValue(pay);
+    model.findOneAndUpdate.mockResolvedValue(pay);
+    await svc.handleWebhook(Buffer.from('x'), 's');
+    expect(model.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ status: PaymentStatus.PENDING }),
+      { status: PaymentStatus.SUCCEEDED },
+      expect.anything(),
+    );
+    expect(bookings.markConfirmed).not.toHaveBeenCalled();
+    expect(refunds.refundPayment).toHaveBeenCalledWith(pay, 'pi_1', 'PROVIDER');
+  });
+  it('late success on cancelled booking refunds, no confirm', async () => {
+    const { svc, stripe, model, bookings, refunds } = setup(
+      view({ status: BookingStatus.CANCELLED }),
+    );
+    stripe.webhooks.constructEvent.mockReturnValue(
+      ev('payment_intent.succeeded'),
+    );
+    model.findOne.mockResolvedValue(pay);
+    model.findOneAndUpdate.mockResolvedValue(pay);
+    await svc.handleWebhook(Buffer.from('x'), 's');
+    expect(bookings.markConfirmed).not.toHaveBeenCalled();
+    expect(refunds.refundPayment).toHaveBeenCalled();
+  });
+  it('superseded PI success is refunded, never confirmed', async () => {
+    const { svc, stripe, model, bookings, refunds } = setup();
+    stripe.webhooks.constructEvent.mockReturnValue(
+      ev('payment_intent.succeeded', { id: 'pi_old' }),
+    );
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_old',
+      status: 'succeeded',
+    });
+    model.findOne.mockResolvedValue({
+      ...pay,
+      stripeId: 'pi_new',
+      stripeIdHistory: ['pi_old'],
+    });
+    await svc.handleWebhook(Buffer.from('x'), 's');
+    expect(bookings.markConfirmed).not.toHaveBeenCalled();
+    expect(refunds.refundPayment).toHaveBeenCalledWith(
+      expect.anything(),
+      'pi_old',
+      'PROVIDER',
+    );
   });
   it('ignores succeeded when re-retrieved PI is not succeeded', async () => {
     const { svc, stripe, model, bookings } = setup();

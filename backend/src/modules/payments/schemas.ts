@@ -15,6 +15,9 @@ export class Payment {
   @Prop({ required: true, index: true }) bookingId: string;
   @Prop({ required: true }) userId: string;
   @Prop({ required: true, index: true }) stripeId: string;
+  /** Earlier PaymentIntent ids superseded by retries. */
+  @Prop({ type: [String], default: [], index: true })
+  stripeIdHistory: string[];
   @Prop({ required: true }) amountMinor: number;
   @Prop({ required: true, default: 'USD' }) currency: string;
   @Prop({
