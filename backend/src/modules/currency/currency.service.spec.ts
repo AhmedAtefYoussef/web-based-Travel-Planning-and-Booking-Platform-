@@ -126,6 +126,26 @@ describe('CurrencyService', () => {
     );
   });
 
+  it('pauses request-path refreshes for 30 minutes after a failed fetch', async () => {
+    const old = { base: 'USD', rateDate: '2020-01-01', rates: RATES };
+    const fx = jest.fn().mockRejectedValue(new Error('down'));
+    global.fetch = fx as any;
+    const { service } = make(fakeModel([old]));
+    await service.convert(100, 'USD', 'EUR');
+    const r = await service.convert(100, 'USD', 'EUR');
+    expect(r.rateDate).toBe('2020-01-01');
+    expect(fx).toHaveBeenCalledTimes(1);
+
+    const realNow = Date.now;
+    Date.now = () => realNow() + 31 * 60 * 1000;
+    try {
+      await service.convert(100, 'USD', 'EUR');
+    } finally {
+      Date.now = realNow;
+    }
+    expect(fx).toHaveBeenCalledTimes(2);
+  });
+
   it('does not refetch when today is already cached', async () => {
     const fx = fetchOk();
     global.fetch = fx as any;
