@@ -1,0 +1,53 @@
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument } from 'mongoose';
+import { BookingType } from '../../common/contracts/booking.contract';
+import { PaymentStatus } from '../../common/contracts/payments.contract';
+import {
+  type RefundReason,
+  RefundStatus,
+} from '../../common/contracts/refunds.contract';
+
+/** Only the PAY-01 fields are stored; never card data. */
+@Schema({ collection: 'payments', timestamps: true })
+export class Payment {
+  @Prop({ type: String, required: true, enum: BookingType })
+  bookingType: BookingType;
+  @Prop({ required: true, index: true }) bookingId: string;
+  @Prop({ required: true }) userId: string;
+  @Prop({ required: true, index: true }) stripeId: string;
+  @Prop({ required: true }) amountMinor: number;
+  @Prop({ required: true, default: 'USD' }) currency: string;
+  @Prop({
+    type: String,
+    required: true,
+    enum: PaymentStatus,
+    default: PaymentStatus.PENDING,
+  })
+  status: PaymentStatus;
+}
+export type PaymentDocument = HydratedDocument<Payment>;
+export const PaymentSchema = SchemaFactory.createForClass(Payment);
+
+@Schema({ collection: 'refunds', timestamps: true })
+export class Refund {
+  @Prop({ type: String, required: true, enum: BookingType })
+  bookingType: BookingType;
+  @Prop({ required: true, index: true }) bookingId: string;
+  @Prop({ required: true }) userId: string;
+  @Prop({ required: true }) paymentId: string;
+  @Prop({ type: String, default: null, index: true })
+  stripeRefundId: string | null;
+  @Prop({ required: true }) amountMinor: number;
+  @Prop({ required: true, default: 'USD' }) currency: string;
+  @Prop({ type: String, required: true, enum: ['USER', 'PROVIDER'] })
+  reason: RefundReason;
+  @Prop({
+    type: String,
+    required: true,
+    enum: RefundStatus,
+    default: RefundStatus.PENDING,
+  })
+  status: RefundStatus;
+}
+export type RefundDocument = HydratedDocument<Refund>;
+export const RefundSchema = SchemaFactory.createForClass(Refund);
