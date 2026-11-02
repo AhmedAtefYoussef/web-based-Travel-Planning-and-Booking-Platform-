@@ -11,11 +11,21 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { DevAuthGuard } from './dev-auth.guard';
 
-function setup(nodeEnv = 'development', meta: Record<string, unknown> = {}) {
+function setup(
+  nodeEnv = 'development',
+  meta: Record<string, unknown> = {},
+  devAuthEnabled = true,
+) {
   const reflector = {
     getAllAndOverride: (key: string) => meta[key],
   } as unknown as Reflector;
-  const config = { get: () => nodeEnv } as unknown as ConfigService;
+  const values: Record<string, unknown> = {
+    NODE_ENV: nodeEnv,
+    DEV_AUTH_ENABLED: devAuthEnabled,
+  };
+  const config = {
+    get: (key: string) => values[key],
+  } as unknown as ConfigService;
   return new DevAuthGuard(reflector, config);
 }
 
@@ -59,6 +69,13 @@ describe('DevAuthGuard', () => {
   it('rejects unknown roles', () => {
     const { context } = ctx({ 'x-dev-user-id': 'u1', 'x-dev-role': 'root' });
     expect(() => setup().canActivate(context)).toThrow(UnauthorizedException);
+  });
+
+  it('ignores dev headers unless DEV_AUTH_ENABLED is true', () => {
+    const context = ctx({ 'x-dev-user-id': 'a'.repeat(24) });
+    expect(() =>
+      setup('development', {}, false).canActivate(context),
+    ).toThrow();
   });
 
   it('ignores dev headers in production', () => {

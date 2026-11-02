@@ -57,7 +57,12 @@ export class DevAuthGuard implements CanActivate {
   }
 
   private resolveUser(request: RequestWithUser): AuthUser | null {
-    if (this.config.get<string>('NODE_ENV') === 'production') {
+    // Allow-list: header auth only when explicitly enabled in dev/test.
+    const env = this.config.get<string>('NODE_ENV');
+    if (
+      this.config.get<boolean>('DEV_AUTH_ENABLED') !== true ||
+      (env !== 'development' && env !== 'test')
+    ) {
       return null;
     }
     const id = header(request, DEV_USER_HEADER);

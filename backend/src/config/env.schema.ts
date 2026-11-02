@@ -8,6 +8,7 @@ import { isSupportedCurrency } from '../common/utils/money';
  */
 export interface EnvVars {
   NODE_ENV: 'development' | 'test' | 'production';
+  DEV_AUTH_ENABLED: boolean;
   PORT: number;
   MONGODB_URI: string;
   JWT_SECRET: string;
@@ -47,6 +48,10 @@ export const envSchema = Joi.object<EnvVars>({
   NODE_ENV: Joi.string()
     .valid('development', 'test', 'production')
     .default('development'),
+  /** Temporary header auth (x-dev-*); opt-in, never allowed in production. */
+  DEV_AUTH_ENABLED: Joi.boolean()
+    .default(false)
+    .when('NODE_ENV', { is: 'production', then: Joi.valid(false) }),
   PORT: Joi.number().port().default(3000),
   MONGODB_URI: Joi.string()
     .uri({ scheme: ['mongodb', 'mongodb+srv'] })
@@ -62,7 +67,7 @@ export const envSchema = Joi.object<EnvVars>({
   FX_API_KEY: Joi.string().optional().allow(''),
   FX_API_BASE_URL: Joi.string()
     .uri({ scheme: ['http', 'https'] })
-    .default('https://api.exchangerate.host'),
+    .default('https://api.fxratesapi.com'),
   UPLOAD_DIR: Joi.string().default('./uploads'),
   ADMIN_SEED_EMAIL: Joi.string().email().optional().allow(''),
   ADMIN_SEED_PASSWORD: Joi.string().min(8).optional().allow(''),
