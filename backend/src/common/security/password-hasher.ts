@@ -17,3 +17,13 @@ export class PasswordHasher {
     }
   }
 }
+
+const defaultHasher = new PasswordHasher();
+
+/** Functional API (api.md contract): salted bcrypt hash. */
+export const hash = (plain: string): Promise<string> =>
+  defaultHasher.hash(plain);
+
+/** Functional API (api.md contract): true when plain matches the hash. */
+export const verify = (plain: string, hashed: string): Promise<boolean> =>
+  defaultHasher.verify(plain, hashed);
