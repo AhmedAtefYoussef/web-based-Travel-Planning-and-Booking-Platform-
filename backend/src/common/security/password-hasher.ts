@@ -1,0 +1,19 @@
+import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
+
+const SALT_ROUNDS = 10;
+
+@Injectable()
+export class PasswordHasher {
+  hash(plain: string): Promise<string> {
+    return bcrypt.hash(plain, SALT_ROUNDS);
+  }
+
+  async verify(plain: string, hash: string): Promise<boolean> {
+    try {
+      return await bcrypt.compare(plain, hash);
+    } catch {
+      return false;
+    }
+  }
+}

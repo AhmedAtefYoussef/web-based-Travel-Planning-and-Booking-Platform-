@@ -72,7 +72,7 @@ describe('DevAuthGuard', () => {
   });
 
   it('ignores dev headers unless DEV_AUTH_ENABLED is true', () => {
-    const context = ctx({ 'x-dev-user-id': 'a'.repeat(24) });
+    const { context } = ctx({ 'x-dev-user-id': 'a'.repeat(24) });
     expect(() =>
       setup('development', {}, false).canActivate(context),
     ).toThrow();
