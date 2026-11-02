@@ -5,6 +5,7 @@ import {
   PayableBooking,
   PayableBookingView,
 } from '../contracts/booking.contract';
+import type { PolicySnapshot } from '../contracts/policies.contract';
 
 /**
  * In-memory stand-in for Karim's booking modules (contract 3). Tests and
@@ -35,8 +36,20 @@ export class PayableBookingStub implements PayableBooking {
     if (this.confirmedWith.get(k) === paymentId) return Promise.resolve();
     booking.status = BookingStatus.CONFIRMED;
     booking.holdExpiresAt = null;
+    booking.paymentId = paymentId;
     this.confirmedWith.set(k, paymentId);
     this.logger.debug(`stub markConfirmed ${k} payment=${paymentId}`);
+    return Promise.resolve();
+  }
+
+  recordPolicyAcceptance(
+    type: BookingType,
+    id: string,
+    snapshot: PolicySnapshot,
+  ): Promise<void> {
+    const booking = this.find(type, id);
+    booking.policySnapshot = snapshot;
+    booking.policiesAcceptedAt = snapshot.acceptedAt;
     return Promise.resolve();
   }
 
