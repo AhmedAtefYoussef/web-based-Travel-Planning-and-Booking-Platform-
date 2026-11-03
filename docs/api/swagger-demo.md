@@ -4,11 +4,17 @@ Walks the PAY-01 to PAY-03 flow end to end: policies, acceptance, PaymentIntent,
 
 The API document is `docs/api/openapi.json` (regenerate with `npm run openapi:export` in `backend/`). Swagger UI is served at `http://localhost:3000/api/docs`, the live JSON at `/api/docs-json`.
 
-## Known limits of the Swagger UI today
+## Using Swagger UI with the dev headers
 
-- The OpenAPI document has no header parameters, so Swagger UI "Try it out" cannot send the dev-auth headers `x-dev-user-id` / `x-dev-role`. Use the `curl` commands below for authenticated calls and use Swagger UI to browse the routes. This goes away when the real JWT cookie auth replaces the dev guard.
-- Request/response schemas are not described yet (DTOs have no `@ApiProperty`), so the UI shows empty bodies. The bodies are listed below.
-- Karim's booking modules are not bound yet. Bookings come from the in-memory stub, seeded by `backend/scripts/demo-server.ts`.
+With `DEV_AUTH_ENABLED=true` (and `NODE_ENV=development` or `test`) the document declares three header API keys. In Swagger UI click **Authorize** and fill:
+
+| Scheme | Value for a normal user | Value for an admin |
+|---|---|---|
+| `x-dev-user-id` | `aaaaaaaaaaaaaaaaaaaaaaaa` | any id |
+| `x-dev-role` | `USER` | `ADMIN` |
+| `x-dev-provider` | leave empty | leave empty (set an airline/hotel id for `AIRLINE_MOD` / `HOTEL_MOD`) |
+
+Then **Close**; "Try it out" sends the headers on every call (they persist across page reloads). Every operation summary starts with its requirement id, for example `[PAY-01] Create payment intent for a booking`, and every request body has a schema with an example. When `DEV_AUTH_ENABLED` is off the Authorize dialog only offers the bearer scheme. Karim's booking modules are not bound yet: bookings come from the in-memory stub, seeded by `backend/scripts/demo-server.ts`. The `curl` commands below do the same thing and stay valid.
 
 ## 0. One-time setup
 
@@ -40,7 +46,7 @@ stripe listen --forward-to localhost:3000/api/payments/webhook
 
 It prints `Ready! ... Your webhook signing secret is whsec_...`. Put that value in `STRIPE_WEBHOOK_SECRET` in `backend/.env` and restart Terminal A. Without this the webhook is rejected with 400 (signature check) and the booking never confirms.
 
-**Terminal C: the commands below.** Shared variables:
+**Terminal C (optional, if you prefer curl to Swagger UI).** Shared variables:
 
 ```bash
 API=http://localhost:3000/api
@@ -49,6 +55,8 @@ FLIGHT=111111111111111111111111
 ```
 
 ## 2. Call order
+
+In Swagger UI use the tags `bookings`, `payments` and `refunds` in this order after **Authorize**; the equivalent curl is in the middle column.
 
 | # | Call | Expect |
 |---|---|---|
