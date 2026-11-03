@@ -157,6 +157,9 @@
                 }
               }
             }
+          },
+          "503": {
+            "description": "No exchange rates have ever been fetched and the FX provider is unreachable"
           }
         },
         "summary": "[ITN-18] Daily cached exchange rates",
@@ -410,6 +413,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
           "401": {
             "description": "Missing or invalid credentials"
           },
@@ -455,6 +461,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
           "401": {
             "description": "Missing or invalid credentials"
           },
@@ -496,6 +505,9 @@
               }
             }
           },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
+          },
           "401": {
             "description": "Missing or invalid credentials"
           },
@@ -536,6 +548,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "description": "Validation failed (see fieldErrors)"
           },
           "401": {
             "description": "Missing or invalid credentials"

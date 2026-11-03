@@ -19,7 +19,8 @@ export class Payment {
   @Prop({ type: [String], default: [], index: true })
   stripeIdHistory: string[];
   @Prop({ required: true }) amountMinor: number;
-  @Prop({ required: true, default: 'USD' }) currency: string;
+  /** Always PLATFORM_CURRENCY, set by the service (no schema default). */
+  @Prop({ required: true }) currency: string;
   @Prop({
     type: String,
     required: true,
@@ -44,7 +45,8 @@ export class Refund {
   @Prop({ type: String, default: null })
   stripeRefundId: string | null;
   @Prop({ required: true }) amountMinor: number;
-  @Prop({ required: true, default: 'USD' }) currency: string;
+  /** Always PLATFORM_CURRENCY, set by the service (no schema default). */
+  @Prop({ required: true }) currency: string;
   @Prop({ type: String, required: true, enum: ['USER', 'PROVIDER'] })
   reason: RefundReason;
   @Prop({

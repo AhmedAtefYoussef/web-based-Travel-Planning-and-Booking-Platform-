@@ -135,11 +135,13 @@ describe('Foundation: validation, errors, auth, pagination (e2e)', () => {
     });
 
     it('ignores attempts to change page size', async () => {
+      // Documented behaviour: `limit` is not a query parameter. The global
+      // pipe forbids non-whitelisted fields, so limit != 10 is a 400.
       const res = await http()
-        .get('/api/admin/audit-logs?page=1&limit=50&size=50')
-        .set(asAdmin());
-      if (res.status === 200) expect(res.body.limit).toBe(10);
-      else expect(res.status).toBe(400);
+        .get('/api/admin/audit-logs?page=1&limit=50')
+        .set(asAdmin())
+        .expect(400);
+      expect(JSON.stringify(res.body)).toContain('limit');
     });
   });
 

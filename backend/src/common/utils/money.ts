@@ -125,3 +125,14 @@ export function formatMinor(
     fromMinor(minor, currency),
   );
 }
+
+/**
+ * Plain decimal string with the currency's own number of minor digits and no
+ * grouping or symbol: (10001,'USD') -> "100.01", (500,'JPY') -> "500".
+ */
+export function minorToDecimalString(
+  minor: MinorUnits,
+  currency: string,
+): string {
+  return fromMinor(minor, currency).toFixed(currencyExponent(currency));
+}

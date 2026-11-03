@@ -1,5 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiServiceUnavailableResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrencyListDto, CurrencyRatesDto } from './dto/currency.dto';
 import { CurrencyService } from './currency.service';
@@ -19,6 +24,10 @@ export class CurrencyController {
 
   @ApiOperation({ summary: '[ITN-18] Daily cached exchange rates' })
   @ApiOkResponse({ type: CurrencyRatesDto })
+  @ApiServiceUnavailableResponse({
+    description:
+      'No exchange rates have ever been fetched and the FX provider is unreachable',
+  })
   @Public()
   @Get('rates')
   rates() {

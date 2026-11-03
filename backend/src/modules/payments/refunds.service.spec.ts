@@ -171,13 +171,13 @@ describe('RefundsService.applyStripeRefund', () => {
     const { svc, refundModel } = setup(0);
     await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
     expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
-      { stripeRefundId: 're_1' },
+      { stripeRefundId: 're_1', status: { $ne: 'REFUNDED' } },
       { status: 'REFUNDED' },
       expect.anything(),
     );
     await svc.applyStripeRefund({ id: 're_1', status: 'failed' } as any);
     expect(refundModel.findOneAndUpdate).toHaveBeenLastCalledWith(
-      { stripeRefundId: 're_1' },
+      { stripeRefundId: 're_1', status: { $ne: 'FAILED' } },
       { status: 'FAILED' },
       expect.anything(),
     );
@@ -272,5 +272,92 @@ describe('PAY-03 F4: refunds are deduped per PaymentIntent', () => {
     const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'PROVIDER');
     expect(stripe.refunds.create).toHaveBeenCalled();
     expect(r?.id).not.toBe('r_late');
+  });
+});
+
+describe('PAY-03: refund notifications and minor units', () => {
+  const pay = (currency: string) =>
+    ({
+      id: 'pay1',
+      bookingType: BookingType.HOTEL,
+      bookingId: 'b1',
+      userId: 'u1',
+      amountMinor: 777,
+      currency,
+    }) as any;
+
+  it('refundPayment (late/superseded) notifies the user', async () => {
+    const { svc, notifications } = setup(0);
+    await svc.refundPayment(
+      pay('USD'),
+      { id: 'pi_old', amount_received: 777 },
+      'PROVIDER',
+    );
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      'u1',
+      expect.objectContaining({
+        type: 'REFUND_ISSUED',
+        body: expect.stringContaining('7.77 USD'),
+      }),
+    );
+  });
+  it('refundPayment returning an existing refund does not notify again', async () => {
+    const { svc, refundModel, notifications } = setup(0);
+    refundModel.findOne.mockResolvedValue({ id: 'r0', status: 'PENDING' });
+    await svc.refundPayment(
+      pay('USD'),
+      { id: 'pi_old', amount_received: 777 },
+      'PROVIDER',
+    );
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+  it('formats a zero-decimal currency (JPY) without dividing by 100', async () => {
+    const { svc, notifications } = setup(0);
+    await svc.refundPayment(
+      pay('JPY'),
+      { id: 'pi_jpy', amount_received: 500 },
+      'PROVIDER',
+    );
+    const arg = (notifications.notify.mock.calls[0] as any[])[1];
+    expect(arg.body).toContain('500 JPY');
+    expect(arg.body).not.toContain('5.00');
+  });
+  it('webhook REFUNDED notifies the owner', async () => {
+    const { svc, refundModel, notifications } = setup(0);
+    refundModel.findOneAndUpdate.mockResolvedValue({
+      id: 'r1',
+      userId: 'u9',
+      amountMinor: 1234,
+      currency: 'EUR',
+    });
+    await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      'u9',
+      expect.objectContaining({
+        type: 'REFUND_COMPLETED',
+        body: expect.stringContaining('12.34 EUR'),
+      }),
+    );
+  });
+  it('webhook FAILED notifies the owner', async () => {
+    const { svc, refundModel, notifications } = setup(0);
+    refundModel.findOneAndUpdate.mockResolvedValue({
+      id: 'r1',
+      userId: 'u9',
+      amountMinor: 1234,
+      currency: 'USD',
+    });
+    await svc.applyStripeRefund({ id: 're_1', status: 'failed' } as any);
+    expect(notifications.notify).toHaveBeenCalledWith(
+      'u9',
+      expect.objectContaining({ type: 'REFUND_FAILED' }),
+    );
+  });
+  it('webhook that changes nothing (redelivery / unknown) does not notify', async () => {
+    const { svc, notifications } = setup(0);
+    await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
+    await svc.applyStripeRefund({ id: 're_1', status: 'pending' } as any);
+    expect(notifications.notify).not.toHaveBeenCalled();
   });
 });

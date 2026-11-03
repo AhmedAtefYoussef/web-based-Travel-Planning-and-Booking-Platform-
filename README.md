@@ -59,7 +59,7 @@ The app validates the file at startup and refuses to boot with missing or invali
 | `npm run test:cov` | Unit tests with coverage |
 | `npm run test:e2e` | End-to-end tests |
 
-Seed data and `npm run seed` are planned for a later PR and are not available yet.
+Seed data, `npm run seed` and the seeded test accounts are not available yet. They arrive with ACC-18 and GEN-12, which belong to teammates. Until then, use the `x-dev-*` headers described below.
 
 ## API documentation (Swagger)
 
