@@ -1,0 +1,91 @@
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus orchestrating Claude Sonnet/Opus/Haiku subagents)
+Related Requirement: PAY-01, PAY-02, PAY-03, PAY-04, GEN-02, GEN-05, GEN-07, GEN-08, GEN-13, ITN-18
+Prompt:
+Act as the orchestrator for my share of Milestone 1 (foundation and common
+layer, payments, audit log, uploads, currency rates, docs). Read the
+requirements workbook, project description and engineering plan, write one
+line of acceptance criteria per requirement, ask me about ambiguities, then
+plan waves of subagent work with contracts first, tests written
+independently from the acceptance criteria, and independent verification.
+How the output was used:
+Acceptance criteria were written into docs/requirements/reqs.json. I answered
+four questions it raised: use mongodb-memory-server for tests, add a dev-only
+test-confirm endpoint, merge through GitHub PRs, and use USD as the platform
+currency. The work was then split into reviewed PRs.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-129, TRVL-131, TRVL-132 (Sprint 0 scaffold and contracts)
+Prompt:
+Commit the NestJS skeleton and the cross-module contracts every teammate
+codes against: env schema, error shape, pagination DTO, money in minor
+units, PayableBooking / Payments / Refunds / Policies / Currency / Audit /
+Uploads interfaces with DI tokens, typed stubs and a temporary auth guard.
+How the output was used:
+Reviewed, extended (policy acceptance and refund fields on PayableBooking)
+and merged as PR #1. An automated security review then flagged the temporary
+header guard as fail-open; it was made opt-in (DEV_AUTH_ENABLED, refused in
+production) in PR #3.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-02, GEN-05, GEN-13
+Prompt:
+Implement the common layer: global ValidationPipe (whitelist,
+forbidNonWhitelisted, transform), an exception filter returning field-level
+errors, duplicate key -> 409, invalid ObjectId -> 400, fixed page size 10,
+Swagger with cookie auth, cookie-parser, rawBody, Mongo connection and a
+salted bcrypt password hasher, test-first.
+How the output was used:
+Verified locally (build, lint, unit and e2e tests) and merged as PR #6
+together with the module wiring and an in-memory Mongo replica set for e2e.
+================================================
+Date: 2026-11-02
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: GEN-07, GEN-08, ITN-18
+Prompt:
+Build the audit log (append-only, admin-only paginated listing with
+filters), image uploads (JPG/PNG checked by MIME and file signature, 5 MB,
+per-entity limits) and the currency service (daily FXRatesAPI rates cached
+in Mongo, fallback to last cached rates, unsupported code -> 400).
+How the output was used:
+Merged as PR #4. Two follow-ups merged in PR #5: a 30-minute cooldown on
+request-path rate refreshes after an API failure (security review finding),
+and the UploadsModule sources, which a too-broad "uploads/" .gitignore rule
+had silently excluded.
+================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: PAY-01, PAY-02, PAY-03, PAY-04
+Prompt:
+Build the payments module: policy acceptance gate, Stripe test-mode
+PaymentIntents in the platform currency, webhook confirmation with signature
+verification on the raw body (idempotent), retry after failure, PaymentIntent
+cancel on hold expiry, and refunds using the tier with the highest
+days-before threshold not exceeding the days remaining (provider
+cancellations 100%, nothing issued at 0).
+How the output was used:
+Implemented test-first with Stripe mocked. Automated security reviews found
+money-safety gaps (late or superseded payment successes, double charge on
+retry, refund de-duplication and amounts). Each was sent back as a fix task
+with a failing test before the PR was merged.
+================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-134, TRVL-135 (ERD, ADRs, README)
+Prompt:
+Write the Milestone 1 docs from the plan and the merged code: Mermaid ERD,
+ADRs for auth cookies, inventory concurrency, payments/webhook and money and
+time, README with setup, Swagger and Stripe CLI steps, and this prompt log.
+How the output was used:
+Reviewed for accuracy against the code; this log was corrected by hand to
+list only prompts that were actually used, with their real dates.
+================================================
