@@ -1,7 +1,13 @@
 import { Controller, Get, NotFoundException, Param, Res } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
+import { ApiErrors } from '../../common/swagger/api-errors.decorator';
 import { UploadsService } from './uploads.service';
 
 @ApiTags('uploads')
@@ -9,6 +15,16 @@ import { UploadsService } from './uploads.service';
 export class UploadsController {
   constructor(private readonly uploads: UploadsService) {}
 
+  @ApiOperation({ summary: '[GEN-08] Serve a stored image (public)' })
+  @ApiParam({ name: 'filename', example: 'a1b2c3.png' })
+  @ApiOkResponse({
+    description: 'Image bytes (image/jpeg or image/png)',
+    content: {
+      'image/png': { schema: { type: 'string', format: 'binary' } },
+      'image/jpeg': { schema: { type: 'string', format: 'binary' } },
+    },
+  })
+  @ApiErrors(404)
   @Public()
   @Get(':filename')
   serve(@Param('filename') filename: string, @Res() res: Response): void {
