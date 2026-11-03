@@ -220,6 +220,8 @@ export interface TestApp {
 export interface TestAppOptions {
   /** Start the fake FX API in failing mode (no rates ever available). */
   fxFailing?: boolean;
+  /** PLATFORM_CURRENCY for this app (default USD). */
+  platformCurrency?: string;
 }
 
 /**
@@ -238,7 +240,7 @@ export async function createTestApp(
     NODE_ENV: 'test',
     MONGODB_URI: mongo.getUri('travel_e2e'),
     JWT_SECRET: 'e2e-only-placeholder-'.padEnd(40, 'x'),
-    PLATFORM_CURRENCY: 'USD',
+    PLATFORM_CURRENCY: opts.platformCurrency ?? 'USD',
     STRIPE_SECRET_KEY: 'sk_test_e2e_placeholder',
     STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET,
     FX_API_BASE_URL: fx.url,

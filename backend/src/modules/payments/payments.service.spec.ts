@@ -22,7 +22,7 @@ const view = (o: Record<string, unknown> = {}) => ({
   ...o,
 });
 
-function setup(v = view()) {
+function setup(v = view(), platformCurrency = 'USD') {
   const model = {
     create: jest.fn(async (d: any) => ({ id: 'pay1', _id: 'pay1', ...d })),
     findOne: jest.fn(async (): Promise<any> => null),
@@ -49,8 +49,13 @@ function setup(v = view()) {
     recordPolicyAcceptance: jest.fn(),
   };
   const refunds = { applyStripeRefund: jest.fn(), refundPayment: jest.fn() };
+  const values: Record<string, string> = {
+    STRIPE_WEBHOOK_SECRET: 'whsec_x',
+    PLATFORM_CURRENCY: platformCurrency,
+  };
   const config = {
-    get: (k: string) => (k === 'STRIPE_WEBHOOK_SECRET' ? 'whsec_x' : 'test'),
+    get: (k: string) => values[k] ?? 'test',
+    getOrThrow: (k: string) => values[k] ?? 'test',
   };
   const svc = new PaymentsService(
     model as any,
@@ -121,6 +126,21 @@ describe('PaymentsService.createForBooking', () => {
     expect(r.paymentId).toBe('pay0');
     expect(r.clientSecret).toBe('cs_0');
     expect(stripe.paymentIntents.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('PAY-04: PLATFORM_CURRENCY drives the currency', () => {
+  it('uses EUR on the intent and the stored payment', async () => {
+    const { svc, stripe, model } = setup(view(), 'EUR');
+    const r = await svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(stripe.paymentIntents.create).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'eur' }),
+      expect.anything(),
+    );
+    expect(model.create).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: 'EUR' }),
+    );
+    expect(r.currency).toBe('EUR');
   });
 });
 

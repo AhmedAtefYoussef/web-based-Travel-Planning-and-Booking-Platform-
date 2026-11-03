@@ -52,6 +52,11 @@ export class CurrencyService implements CurrencyServiceContract {
     return Promise.resolve([...SUPPORTED_CURRENCIES]);
   }
 
+  /**
+   * Converts minor units between supported currencies.
+   * @throws BadRequestException (400) for an unsupported code or invalid amount
+   * @throws ServiceUnavailableException (503) when no rates were ever fetched
+   */
   async convert(
     amountMinor: number,
     from: string,

@@ -28,8 +28,6 @@ import { Payment, PaymentDocument } from './schemas';
 import { RefundsService } from './refunds.service';
 import { STRIPE_CLIENT } from './stripe.provider';
 
-const CURRENCY = 'USD';
-
 export interface PaymentView {
   id: string;
   bookingType: BookingType;
@@ -50,6 +48,11 @@ export class PaymentsService implements PaymentsServiceContract {
     private readonly refunds: RefundsService,
     private readonly config: ConfigService,
   ) {}
+
+  /** PAY-04: the single platform currency, from PLATFORM_CURRENCY. */
+  private get currency(): string {
+    return this.config.getOrThrow<string>('PLATFORM_CURRENCY');
+  }
 
   async createForBooking(
     userId: string,
@@ -79,7 +82,7 @@ export class PaymentsService implements PaymentsServiceContract {
       userId,
       stripeId: pi.id,
       amountMinor: view.totalMinor,
-      currency: CURRENCY,
+      currency: this.currency,
       status: PaymentStatus.PENDING,
     });
     return this.result(doc, pi.client_secret);
@@ -310,7 +313,7 @@ export class PaymentsService implements PaymentsServiceContract {
     return this.stripe.paymentIntents.create(
       {
         amount: amountMinor,
-        currency: CURRENCY.toLowerCase(),
+        currency: this.currency.toLowerCase(),
         automatic_payment_methods: { enabled: true },
         metadata: { bookingType: type, bookingId },
       },

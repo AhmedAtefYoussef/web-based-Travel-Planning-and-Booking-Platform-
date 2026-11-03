@@ -24,6 +24,7 @@ import { IsBoolean, IsEnum, IsMongoId } from 'class-validator';
 import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { CurrentUser, Public } from '../../common/decorators';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { BookingType } from '../../common/contracts/booking.contract';
 import { type AuthUser, Role } from '../../common/contracts/auth.contract';
 import { ApiErrors } from '../../common/swagger/api-errors.decorator';
@@ -83,7 +84,7 @@ export class BookingPoliciesController {
   policies(
     @CurrentUser('id') userId: string,
     @Param('type', new ParseEnumPipe(UrlBookingType)) type: UrlBookingType,
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
   ) {
     return this.svc.getPolicies(userId, toType(type), id);
   }
@@ -104,7 +105,7 @@ export class BookingPoliciesController {
   accept(
     @CurrentUser('id') userId: string,
     @Param('type', new ParseEnumPipe(UrlBookingType)) type: UrlBookingType,
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
     @Body() dto: AcceptPoliciesDto,
   ) {
     if (dto.accepted !== true) {
@@ -166,9 +167,12 @@ export class PaymentsController {
   @ApiOperation({ summary: '[PAY-01] Retry a failed payment' })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiCreatedResponse({ type: CreatePaymentResponseDto })
-  @ApiErrors(401, 403, 404, 409)
+  @ApiErrors(400, 401, 403, 404, 409)
   @Post(':id/retry')
-  retry(@CurrentUser('id') userId: string, @Param('id') id: string) {
+  retry(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ) {
     return this.payments.retry(userId, id);
   }
 
@@ -179,12 +183,12 @@ export class PaymentsController {
   })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: ConfirmedDto })
-  @ApiErrors(401, 403, 404)
+  @ApiErrors(400, 401, 403, 404)
   @Post(':id/test-confirm')
   @HttpCode(200)
   async testConfirm(
     @CurrentUser('id') userId: string,
-    @Param('id') id: string,
+    @Param('id', ParseObjectIdPipe) id: string,
   ) {
     await this.payments.testConfirm(userId, id);
     return { confirmed: true };
@@ -193,9 +197,12 @@ export class PaymentsController {
   @ApiOperation({ summary: '[PAY-01] Get a payment (owner or admin)' })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: PaymentViewDto })
-  @ApiErrors(401, 403, 404)
+  @ApiErrors(400, 401, 403, 404)
   @Get(':id')
-  get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  get(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ) {
     return this.payments.getForUser(user.id, user.role === Role.ADMIN, id);
   }
 }
@@ -208,9 +215,12 @@ export class RefundsController {
   @ApiOperation({ summary: '[PAY-03] Get a refund (owner or admin)' })
   @ApiParam({ name: 'id', description: 'Refund id' })
   @ApiOkResponse({ type: RefundViewDto })
-  @ApiErrors(401, 404)
+  @ApiErrors(400, 401, 404)
   @Get(':id')
-  async get(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+  async get(
+    @CurrentUser() user: AuthUser,
+    @Param('id', ParseObjectIdPipe) id: string,
+  ) {
     const r = await this.refunds.findById(id);
     if (!r || (r.userId !== user.id && user.role !== Role.ADMIN)) {
       throw new NotFoundException('Refund not found');

@@ -21,7 +21,11 @@ import {
   PAYABLE_BOOKING,
 } from '../../common/contracts/tokens';
 import { daysRemaining } from '../../common/utils/dates';
-import { MinorUnits, percentOfMinor } from '../../common/utils/money';
+import {
+  MinorUnits,
+  minorToDecimalString,
+  percentOfMinor,
+} from '../../common/utils/money';
 import { Payment, PaymentDocument, Refund, RefundDocument } from './schemas';
 import { STRIPE_CLIENT } from './stripe.provider';
 
@@ -97,12 +101,7 @@ export class RefundsService implements RefundsServiceContract {
       `refund-pi-${payment.stripeId}-${reason}`,
       view.userId,
     );
-    await this.notifications.notify(view.userId, {
-      type: 'REFUND_ISSUED',
-      title: 'Refund initiated',
-      body: `A refund of ${(amountMinor / 100).toFixed(2)} ${payment.currency} was initiated.`,
-      link: `/refunds/${String(doc.id ?? doc._id)}`,
-    });
+    await this.notifyIssued(doc, view.userId);
     return toRecord(doc);
   }
 
@@ -128,7 +127,17 @@ export class RefundsService implements RefundsServiceContract {
       `refund-pi-${intent.id}`,
       payment.userId,
     );
+    await this.notifyIssued(doc, payment.userId);
     return toRecord(doc);
+  }
+
+  private async notifyIssued(doc: RefundDocument, userId: string) {
+    await this.notifications.notify(userId, {
+      type: 'REFUND_ISSUED',
+      title: 'Refund initiated',
+      body: `A refund of ${minorToDecimalString(doc.amountMinor, doc.currency)} ${doc.currency} was initiated.`,
+      link: `/refunds/${String(doc.id ?? doc._id)}`,
+    });
   }
 
   private activeRefundFor(paymentIntentId: string) {
@@ -189,11 +198,30 @@ export class RefundsService implements RefundsServiceContract {
     else if (refund.status === 'failed' || refund.status === 'canceled')
       status = RefundStatus.FAILED;
     if (!status) return;
-    await this.refunds.findOneAndUpdate(
-      { stripeRefundId: refund.id },
+    // Only the first delivery that changes the status notifies the user.
+    const doc = await this.refunds.findOneAndUpdate(
+      { stripeRefundId: refund.id, status: { $ne: status } },
       { status },
       { new: true },
     );
+    if (!doc) return;
+    const amount = `${minorToDecimalString(doc.amountMinor, doc.currency)} ${doc.currency}`;
+    const link = `/refunds/${String(doc.id ?? doc._id)}`;
+    if (status === RefundStatus.REFUNDED) {
+      await this.notifications.notify(doc.userId, {
+        type: 'REFUND_COMPLETED',
+        title: 'Refund completed',
+        body: `Your refund of ${amount} has been completed.`,
+        link,
+      });
+    } else {
+      await this.notifications.notify(doc.userId, {
+        type: 'REFUND_FAILED',
+        title: 'Refund failed',
+        body: `Your refund of ${amount} could not be completed. Please contact support.`,
+        link,
+      });
+    }
   }
 
   async findById(id: string): Promise<RefundRecord | null> {
