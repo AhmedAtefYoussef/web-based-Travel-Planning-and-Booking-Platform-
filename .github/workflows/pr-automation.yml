@@ -1,0 +1,116 @@
+name: PR Automation
+
+# Keyless merge gate, using only the built-in GITHUB_TOKEN:
+# 1. A push to a work branch opens a PR into develop if none exists.
+# 2. `pr-requirements` checks the PR against the project rules
+#    (.github/scripts/pr-requirements.mjs) and posts one sticky report comment.
+# 3. When it passes, auto-merge is enabled; GitHub merges only after every
+#    required check (this one and CI `build-lint-test`) is green and branch
+#    protection is satisfied. When it fails, auto-merge is switched off.
+# Release PRs (develop -> main) are checked but merged by the team leader.
+
+on:
+  push:
+    branches: ['feature/**', 'fix/**', 'refactor/**', 'docs/**', 'test/**', 'chore/**', 'ci/**']
+  pull_request:
+    branches: [develop, main]
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+concurrency:
+  # One group per event type: a push run and a pull_request run for the same
+  # branch must not cancel each other (a cancelled run blocks the required check).
+  group: pr-automation-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  pr-requirements:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find or open the pull request
+        id: pr
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          EVENT_PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -n "$EVENT_PR" ]; then
+            echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$NUMBER" ]; then
+            git fetch --quiet origin develop
+            if [ -z "$(git log --format=%H origin/develop..HEAD)" ]; then
+              echo "No commits ahead of develop; nothing to open."; echo "number=" >> "$GITHUB_OUTPUT"; exit 0
+            fi
+            TITLE=$(git log --reverse --format=%s origin/develop..HEAD | head -1)
+            {
+              echo "## What"; echo
+              git log --reverse --format='- %s' origin/develop..HEAD; echo
+              echo "## Why"; echo
+              echo "Opened automatically from branch \`$BRANCH\`. Edit this description to add context."; echo
+              echo "## How to verify"; echo
+              echo "- CI \`build-lint-test\`: lint, build, unit and e2e tests"
+              git diff --name-only origin/develop...HEAD | grep -E '\.spec\.ts$|^backend/test/' | sed 's/^/- Tests changed: `/; s/$/`/' || true
+            } > body.md
+            gh pr create --base develop --head "$BRANCH" --title "$TITLE" --body-file body.md
+            NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          fi
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: Check requirements
+        id: check
+        if: steps.pr.outputs.number != ''
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          # mergeable is computed asynchronously; give GitHub a moment
+          for i in 1 2 3 4 5 6; do
+            gh pr view "$NUMBER" --json title,body,headRefName,baseRefName,commits,files,mergeable,isDraft > pr.json
+            [ "$(jq -r .mergeable pr.json)" != "UNKNOWN" ] && break
+            sleep 5
+          done
+          gh pr diff "$NUMBER" > pr.diff
+          set +e
+          node .github/scripts/pr-requirements.mjs pr.json pr.diff docs/requirements/reqs.json report.md
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post report
+        if: steps.pr.outputs.number != ''
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          ID=$(gh api "repos/$GH_REPO/issues/$NUMBER/comments" --paginate \
+            --jq '.[] | select(.body | startswith("<!-- pr-requirements-report -->")) | .id' | head -1)
+          if [ -n "$ID" ]; then
+            gh api -X PATCH "repos/$GH_REPO/issues/comments/$ID" -F body=@report.md > /dev/null
+          else
+            gh pr comment "$NUMBER" --body-file report.md
+          fi
+
+      - name: Enable or disable auto-merge
+        if: steps.pr.outputs.number != ''
+        env:
+          NUMBER: ${{ steps.pr.outputs.number }}
+          STATUS: ${{ steps.check.outputs.status }}
+        run: |
+          BASE=$(jq -r .baseRefName pr.json)
+          if [ "$STATUS" = "0" ] && [ "$BASE" = "develop" ]; then
+            gh pr merge "$NUMBER" --auto --squash \
+              || echo "::warning::Could not enable auto-merge. Enable 'Allow auto-merge' in the repository settings."
+          else
+            gh pr merge "$NUMBER" --disable-auto 2>/dev/null || true
+          fi
+          if [ "$STATUS" != "0" ]; then
+            echo "::error::PR #$NUMBER does not meet the project requirements. See the report comment."
+            exit 1
+          fi
