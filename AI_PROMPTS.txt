@@ -89,3 +89,73 @@ How the output was used:
 Reviewed for accuracy against the code; this log was corrected by hand to
 list only prompts that were actually used, with their real dates.
 ================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140 (Hotels, rooms, room_nights and reviews schemas)
+Prompt:
+Read Jira task TRVL-140 and move it to In Progress. Look at how existing
+schemas are written in backend/src and follow the same style. Create
+schemas for hotels, rooms, room_nights and reviews exactly as described in
+the task, including the unique indexes (room number per hotel, {roomId,
+date} for room_nights, reservationId for reviews). Explain your plan first
+and wait for my approval before writing code. Do not read any .env file.
+How the output was used:
+Claude Code moved TRVL-140 to In Progress, read the ERD and the plan doc,
+and proposed four schemas in backend/src/modules/hotels with spec tests.
+It asked whether references should be strings or ObjectIds. Overlap checks
+were left for HTL-04 and module registration for HTL-01.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+Approved. Use Types.ObjectId for hotelId, roomId, reservationId and userId
+as the ERD says. Go ahead and implement the plan, then run lint and the
+tests and show me the results.
+How the output was used:
+Four schemas (hotel, room, room_night, review) and a shared
+schema-validators file were added in backend/src/modules/hotels with 58
+spec tests. The first run failed because @Prop could not infer types from
+the IsoDate and MinorUnits aliases; Claude Code added explicit types and
+reran. Lint: 0 errors. All 230 tests passed. Reviewed the decisions it
+flagged (optional review text, no starClass range, overlap checks left
+for HTL-04) and asked for a 1-5 range on starClass in the next prompt.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+Add a 1-5 range check for starClass with a test. Then run lint and tests
+again. If they pass, commit with a message starting with "TRVL-140:", push
+the branch, and open a pull request into develop with "TRVL-140" in the
+title. Then add a comment on the Jira task with the PR link.
+How the output was used:
+starClass now accepts whole numbers 1-5 only (tests accept 1 and 5,
+reject 0, 6 and 3.5). Lint: 0 errors, all 234 tests passed, npm run build
+succeeded. Committed, pushed and opened PR #20 into develop using the
+repo's PR template, and the PR link was added as a comment on TRVL-140.
+The pr-requirements check then failed because the "TRVL-140:" prefix I
+asked for is not Conventional Commits format.
+================================================
+Date: 2026-11-04
+Student: Sandra George
+Tool: Claude Code
+Related Requirement: TRVL-140
+Prompt:
+The PR check failed because the title and commit messages aren't
+Conventional Commits. Rewrite every commit message on this branch in the
+format feat(hotels): <description> [TRVL-140] (use test(hotels): or
+docs(prompts): where that fits better), then push with --force-with-lease.
+Change the PR #20 title to feat(hotels): add hotels, rooms, room_nights
+and reviews schemas [TRVL-140]. Also commit my AI_PROMPTS.txt changes as
+docs(prompts): add TRVL-140 prompt log entries [TRVL-140] and push.
+How the output was used:
+Claude Code rewrote the branch's single commit as feat(hotels): add
+hotels, rooms, room_nights and reviews schemas [TRVL-140], force-pushed
+with --force-with-lease and renamed PR #20 to match. All 3 checks then
+passed. The AI_PROMPTS.txt commit was skipped because my edits had not
+been saved yet; they were committed in a follow-up.
+================================================
