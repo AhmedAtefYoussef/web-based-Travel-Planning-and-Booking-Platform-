@@ -183,7 +183,7 @@ export function renderReport({ errors, warnings, passed }) {
     list('Blocking', errors),
     list('Warnings', warnings),
     list('Passed', passed),
-    '\nCI (`build-lint-test`) must also pass. Auto-merge is enabled only while this check passes; push a fix to re-run.',
+    '\nCI (`build-lint-test`) must also pass. The team leader reviews and merges the PR; push a fix to re-run this check.',
   ].join('\n');
 }
 

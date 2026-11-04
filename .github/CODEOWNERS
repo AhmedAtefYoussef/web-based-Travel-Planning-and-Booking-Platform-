@@ -1,4 +1,4 @@
-# Changes to the merge gate (workflows, rule scripts) and to the requirement
-# sources it checks against need the team leader's review.
-/.github/                  @AhmedAtefYoussef
-/docs/requirements/        @AhmedAtefYoussef
+# Every pull request needs the team leader's approval before it can merge
+# (branch protection: "Require review from Code Owners"). This also covers the
+# merge gate (.github/) and the requirement sources (docs/requirements/).
+*                          @AhmedAtefYoussef

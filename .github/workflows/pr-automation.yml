@@ -7,10 +7,8 @@ name: PR Automation
 #    project rules and posts one sticky report comment. The rules script and
 #    reqs.json are taken from the BASE branch, so a PR cannot relax the rules
 #    it is judged by (.github/ and docs/requirements/ are also CODEOWNERS-gated).
-# 3. When it passes, auto-merge is enabled; GitHub merges only after every
-#    required check (this one and CI `build-lint-test`) is green and branch
-#    protection is satisfied. When it fails, auto-merge is switched off.
-# Release PRs (develop -> main) are checked but merged by the team leader.
+# 3. Nothing is merged automatically: the team leader reviews and merges every
+#    PR once this check and CI `build-lint-test` are green.
 
 on:
   pull_request:
@@ -27,7 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write # enabling auto-merge requires it
+  contents: read
   pull-requests: write
   issues: write
 
@@ -95,16 +93,10 @@ jobs:
             gh pr comment "$NUMBER" --body-file report.md
           fi
 
-      - name: Enable or disable auto-merge
+      - name: Result
         env:
           STATUS: ${{ steps.check.outputs.status }}
         run: |
-          if [ "$STATUS" = "0" ] && [ "$BASE" = "develop" ]; then
-            gh pr merge "$NUMBER" --auto --squash \
-              || echo "::warning::Could not enable auto-merge. Enable 'Allow auto-merge' in the repository settings."
-          else
-            gh pr merge "$NUMBER" --disable-auto 2>/dev/null || true
-          fi
           if [ "$STATUS" != "0" ]; then
             echo "::error::PR #$NUMBER does not meet the project requirements. See the report comment."
             exit 1
