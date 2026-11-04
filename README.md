@@ -110,3 +110,12 @@ See `docs/architecture/adr-003-payments-webhook.md` for the design.
 ## Conventions
 
 Money is integer minor units (USD cents); times are UTC. Lists use `?page=N` with a fixed page size of 10 and return `{items, page, limit, total, totalPages}`. Errors return `{statusCode, error, message, fieldErrors?, path, timestamp}`. Commits follow Conventional Commits with the requirement ID, for example `feat(payments): ... [PAY-01]`.
+
+## Pull requests and merging
+
+Open every PR into `develop` (or `develop` into `main` for a release). Branch protection on both branches requires two status checks to pass on the latest commit before anyone, admins included, can merge:
+
+- **CI / build-lint-test**: `npm ci`, lint, build, unit and e2e tests in `backend/`.
+- **Claude Review / claude-review**: an automated review of the diff for correctness, security and the project rules above. It posts its findings as a PR comment and passes only when its verdict is APPROVE.
+
+The branch must also be up to date with its base (merge or rebase `develop` first) and all review conversations resolved. Push new commits to re-run both checks.
