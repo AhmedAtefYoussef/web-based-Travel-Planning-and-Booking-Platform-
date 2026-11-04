@@ -89,7 +89,6 @@ How the output was used:
 Reviewed for accuracy against the code; this log was corrected by hand to
 list only prompts that were actually used, with their real dates.
 ================================================
-================================================
 Date: 2026-11-04
 Student: Sandra George
 Tool: Claude Code
@@ -159,3 +158,4 @@ hotels, rooms, room_nights and reviews schemas [TRVL-140], force-pushed
 with --force-with-lease and renamed PR #20 to match. All 3 checks then
 passed. The AI_PROMPTS.txt commit was skipped because my edits had not
 been saved yet; they were committed in a follow-up.
+================================================
