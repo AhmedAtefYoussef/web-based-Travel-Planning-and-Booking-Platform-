@@ -25,7 +25,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # npm 11 (bundled with Node 24) matches the lockfile format
+          node-version: 24
           cache: npm
           cache-dependency-path: backend/package-lock.json
 
