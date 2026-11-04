@@ -110,3 +110,15 @@ See `docs/architecture/adr-003-payments-webhook.md` for the design.
 ## Conventions
 
 Money is integer minor units (USD cents); times are UTC. Lists use `?page=N` with a fixed page size of 10 and return `{items, page, limit, total, totalPages}`. Errors return `{statusCode, error, message, fieldErrors?, path, timestamp}`. Commits follow Conventional Commits with the requirement ID, for example `feat(payments): ... [PAY-01]`.
+
+## Pull requests and merging
+
+Merging is automated with GitHub Actions only, using no external keys:
+
+1. Push your work to a branch such as `feature/FLT-11-round-trip` or `fix/HTL-18-overlap`. If no PR exists yet, **PR Automation** opens one into `develop`, titled after your first commit. Edit its description to add context.
+2. Two required checks run on every push:
+   - **`build-lint-test`** (CI): the `AI_PROMPTS.txt` entry format and `.env.example` vs `env.schema.ts` (`.github/scripts/repo-consistency.mjs`), then `npm ci`, lint, build, unit and e2e tests in `backend/`, and finally that `docs/api/openapi.json` matches the code (run `npm run openapi:export` and commit it when you change an endpoint).
+   - **`pr-requirements`**: the PR rules in `.github/scripts/pr-requirements.mjs`. They cover the base branch, merge conflicts, branch name, a Conventional Commit title with a requirement ID that exists in `docs/requirements/reqs.json`, the "What" and "How to verify" sections, Conventional Commit messages, tests for changed services, `[ID]` in Swagger summaries, no `.env`/build/credential files and no secrets, plus a warning when a referenced ID has no row in `docs/requirements/traceability.md`. The rules and `reqs.json` are read from the base branch, so a PR cannot change the rules it is checked by. The result is posted as one comment on the PR.
+3. Nothing merges automatically. Once both checks are green and the branch is up to date with `develop`, the team leader reviews, approves and merges the PR. Every PR needs the team leader's approval (`.github/CODEOWNERS`), and a push after the approval needs a fresh one.
+
+Release PRs (`develop` → `main`) are checked the same way and merged by the team leader.
