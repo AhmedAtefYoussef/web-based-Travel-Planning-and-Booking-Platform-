@@ -116,9 +116,9 @@ Money is integer minor units (USD cents); times are UTC. Lists use `?page=N` wit
 Merging is automated with GitHub Actions only, using no external keys:
 
 1. Push your work to a branch such as `feature/FLT-11-round-trip` or `fix/HTL-18-overlap`. If no PR exists yet, **PR Automation** opens one into `develop`, titled after your first commit. Edit its description to add context.
-2. Two checks run on every push:
-   - **`build-lint-test`** (CI): `npm ci`, lint, build, unit and e2e tests in `backend/`.
-   - **`pr-requirements`**: the PR rules in `.github/scripts/pr-requirements.mjs`. They cover the base branch, merge conflicts, branch name, a Conventional Commit title with a requirement ID that exists in `docs/requirements/reqs.json`, the "What" and "How to verify" sections, Conventional Commit messages, tests for changed services, `[ID]` in Swagger summaries, no `.env`/build/credential files and no secrets. The result is posted as one comment on the PR.
-3. When `pr-requirements` passes, auto-merge is switched on, and GitHub squash-merges the PR into `develop` once every required check is green. If a later push breaks a rule, auto-merge is switched off again.
+2. Two required checks run on every push:
+   - **`build-lint-test`** (CI): the `AI_PROMPTS.txt` entry format and `.env.example` vs `env.schema.ts` (`.github/scripts/repo-consistency.mjs`), then `npm ci`, lint, build, unit and e2e tests in `backend/`, and finally that `docs/api/openapi.json` matches the code (run `npm run openapi:export` and commit it when you change an endpoint).
+   - **`pr-requirements`**: the PR rules in `.github/scripts/pr-requirements.mjs`. They cover the base branch, merge conflicts, branch name, a Conventional Commit title with a requirement ID that exists in `docs/requirements/reqs.json`, the "What" and "How to verify" sections, Conventional Commit messages, tests for changed services, `[ID]` in Swagger summaries, no `.env`/build/credential files and no secrets, plus a warning when a referenced ID has no row in `docs/requirements/traceability.md`. The rules and `reqs.json` are read from the base branch, so a PR cannot change the rules it is checked by. The result is posted as one comment on the PR.
+3. When `pr-requirements` passes, auto-merge is switched on, and GitHub squash-merges the PR into `develop` once every required check is green, the branch is up to date with `develop` and the PR is approved. If a later push breaks a rule, auto-merge is switched off again.
 
-Release PRs (`develop` → `main`) are checked the same way and merged by the team leader.
+Changes under `.github/` or `docs/requirements/` also need the team leader's review (`.github/CODEOWNERS`). Release PRs (`develop` → `main`) are checked the same way and merged by the team leader.

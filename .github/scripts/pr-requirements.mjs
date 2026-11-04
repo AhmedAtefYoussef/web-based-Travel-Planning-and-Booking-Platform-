@@ -1,8 +1,9 @@
 // Deterministic merge-gate checks for a pull request. No external services.
-// Usage: node pr-requirements.mjs <pr.json> <pr.diff> <reqs.json> <report.md>
-// pr.json comes from `gh pr view --json title,body,headRefName,baseRefName,commits,files,mergeable,isDraft`.
+// Usage: node pr-requirements.mjs <pr.json> <pr.diff> <reqs.json> <report.md> [traceability.md]
+// pr.json comes from `gh pr view --json title,body,headRefName,baseRefName,commits,mergeable,isDraft`,
+// with `files` replaced by the full paginated list from the pulls/<n>/files API.
 // Exit code 1 when any blocking check fails.
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const TYPES = 'feat|fix|refactor|docs|test|chore|ci|build|perf|style|revert';
@@ -52,7 +53,7 @@ export function addedLines(diff) {
  * entry is a short sentence. Release PRs (develop -> main) skip the
  * per-feature rules.
  */
-export function evaluate(pr, diff, knownIds) {
+export function evaluate(pr, diff, knownIds, traceability = null) {
   const errors = [];
   const warnings = [];
   const passed = [];
@@ -92,6 +93,18 @@ export function evaluate(pr, diff, knownIds) {
     } else if (unknown.length) {
       errors.push(`Unknown requirement ID(s) ${unknown.map((i) => `\`${i}\``).join(', ')}: not in docs/requirements/reqs.json.`);
     } else passed.push(`References ${ids.map((i) => `\`${i}\``).join(', ')}.`);
+
+    // Plan Definition of Done: every requirement ID has a traceability row
+    if (traceability !== null) {
+      const untraced = ids.filter(
+        (id) => !id.startsWith('TRVL-') && known.has(id) && !new RegExp(`^\\|\\s*${id}\\s*\\|`, 'm').test(traceability),
+      );
+      if (untraced.length) {
+        warnings.push(
+          `No row for ${untraced.map((i) => `\`${i}\``).join(', ')} in docs/requirements/traceability.md; add one (ID, endpoint, test, status).`,
+        );
+      } else if (ids.some((id) => !id.startsWith('TRVL-'))) passed.push('Requirement IDs have traceability rows.');
+    }
 
     // Description from the PR template
     const body = pr.body ?? '';
@@ -175,11 +188,12 @@ export function renderReport({ errors, warnings, passed }) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const [prPath, diffPath, reqsPath, reportPath] = process.argv.slice(2);
+  const [prPath, diffPath, reqsPath, reportPath, tracePath] = process.argv.slice(2);
   const pr = JSON.parse(readFileSync(prPath, 'utf8'));
   const diff = readFileSync(diffPath, 'utf8');
   const ids = JSON.parse(readFileSync(reqsPath, 'utf8')).map((r) => r.id);
-  const result = evaluate(pr, diff, ids);
+  const trace = tracePath && existsSync(tracePath) ? readFileSync(tracePath, 'utf8') : null;
+  const result = evaluate(pr, diff, ids, trace);
   writeFileSync(reportPath, renderReport(result));
   console.log(renderReport(result));
   process.exit(result.errors.length ? 1 : 0);

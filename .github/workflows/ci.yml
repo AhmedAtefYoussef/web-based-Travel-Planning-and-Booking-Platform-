@@ -38,6 +38,11 @@ jobs:
           path: ~/.cache/mongodb-binaries
           key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('backend/package-lock.json') }}
 
+      # AI_PROMPTS.txt entry format (brief 11.1) and .env.example vs env.schema.ts
+      - name: Repository consistency
+        working-directory: .
+        run: node .github/scripts/repo-consistency.mjs
+
       - run: npm ci
       - run: npm run lint
       - run: npm run build
@@ -45,3 +50,13 @@ jobs:
         run: test -f dist/main.js
       - run: npm test
       - run: npm run test:e2e
+
+      # docs/api/openapi.json must match what the code generates
+      - name: OpenAPI document is up to date
+        run: |
+          npm run openapi:export
+          if ! git diff --quiet -- ../docs/api/openapi.json; then
+            git diff --stat -- ../docs/api/openapi.json
+            echo "::error file=docs/api/openapi.json::OpenAPI document is out of date. Run 'npm run openapi:export' in backend/ and commit docs/api/openapi.json."
+            exit 1
+          fi

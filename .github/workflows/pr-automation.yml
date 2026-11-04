@@ -1,9 +1,14 @@
 name: PR Automation
 
 # Keyless merge gate, using only the built-in GITHUB_TOKEN:
-# 1. A push to a work branch opens a PR into develop if none exists.
-# 2. `pr-requirements` checks the PR against the project rules
-#    (.github/scripts/pr-requirements.mjs) and posts one sticky report comment.
+# 1. `open-pr` (push): a push to a work branch opens a PR into develop if none
+#    exists, then dispatches this workflow for it (PRs opened with GITHUB_TOKEN
+#    do not fire pull_request events). It never checks anything itself, so the
+#    required `pr-requirements` check runs exactly once per event.
+# 2. `pr-requirements` (pull_request / dispatch): checks the PR against the
+#    project rules and posts one sticky report comment. The rules script and
+#    reqs.json are taken from the BASE branch, so a PR cannot relax the rules
+#    it is judged by (.github/ and docs/requirements/ are also CODEOWNERS-gated).
 # 3. When it passes, auto-merge is enabled; GitHub merges only after every
 #    required check (this one and CI `build-lint-test`) is green and branch
 #    protection is satisfied. When it fails, auto-merge is switched off.
@@ -15,79 +20,111 @@ on:
   pull_request:
     branches: [develop, main]
     types: [opened, edited, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      number:
+        description: Pull request number to check
+        required: true
 
 concurrency:
-  # One group per event type: a push run and a pull_request run for the same
-  # branch must not cancel each other (a cancelled run blocks the required check).
   group: pr-automation-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: write # enabling auto-merge requires it
   pull-requests: write
   issues: write
+  actions: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
 
 jobs:
-  pr-requirements:
+  open-pr:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Find or open the pull request
-        id: pr
+      - name: Open a pull request if none exists
         env:
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-          EVENT_PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.ref_name }}
         run: |
-          if [ -n "$EVENT_PR" ]; then
-            echo "number=$EVENT_PR" >> "$GITHUB_OUTPUT"; exit 0
+          if [ -n "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')" ]; then
+            echo "PR already open; its pull_request event runs the check."; exit 0
           fi
-          NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$NUMBER" ]; then
-            git fetch --quiet origin develop
-            if [ -z "$(git log --format=%H origin/develop..HEAD)" ]; then
-              echo "No commits ahead of develop; nothing to open."; echo "number=" >> "$GITHUB_OUTPUT"; exit 0
-            fi
-            TITLE=$(git log --reverse --format=%s origin/develop..HEAD | head -1)
-            {
-              echo "## What"; echo
-              git log --reverse --format='- %s' origin/develop..HEAD; echo
-              echo "## Why"; echo
-              echo "Opened automatically from branch \`$BRANCH\`. Edit this description to add context."; echo
-              echo "## How to verify"; echo
-              echo "- CI \`build-lint-test\`: lint, build, unit and e2e tests"
-              git diff --name-only origin/develop...HEAD | grep -E '\.spec\.ts$|^backend/test/' | sed 's/^/- Tests changed: `/; s/$/`/' || true
-            } > body.md
-            gh pr create --base develop --head "$BRANCH" --title "$TITLE" --body-file body.md
-            NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          if [ -z "$(git log --format=%H origin/develop..HEAD)" ]; then
+            echo "No commits ahead of develop; nothing to open."; exit 0
           fi
-          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+          TITLE=$(git log --reverse --format=%s origin/develop..HEAD | head -1)
+          {
+            echo "## What"; echo
+            git log --reverse --format='- %s' origin/develop..HEAD; echo
+            echo "## Why"; echo
+            echo "Opened automatically from branch \`$BRANCH\`. Edit this description to add context."; echo
+            echo "## How to verify"; echo
+            echo "- CI \`build-lint-test\`: lint, build, unit and e2e tests"
+            git diff --name-only origin/develop...HEAD | grep -E '\.spec\.ts$|^backend/test/' | sed 's/^/- Tests changed: `/; s/$/`/' || true
+          } > body.md
+          gh pr create --base develop --head "$BRANCH" --title "$TITLE" --body-file body.md
+          NUMBER=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')
+          gh workflow run pr-automation.yml --ref "$BRANCH" -f number="$NUMBER"
 
-      - name: Check requirements
-        id: check
-        if: steps.pr.outputs.number != ''
+  pr-requirements:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read the pull request
         env:
-          NUMBER: ${{ steps.pr.outputs.number }}
+          NUMBER: ${{ github.event.pull_request.number || inputs.number }}
         run: |
           # mergeable is computed asynchronously; give GitHub a moment
           for i in 1 2 3 4 5 6; do
-            gh pr view "$NUMBER" --json title,body,headRefName,baseRefName,commits,files,mergeable,isDraft > pr.json
-            [ "$(jq -r .mergeable pr.json)" != "UNKNOWN" ] && break
+            gh pr view "$NUMBER" --json number,title,body,headRefName,baseRefName,commits,mergeable,isDraft > meta.json
+            [ "$(jq -r .mergeable meta.json)" != "UNKNOWN" ] && break
             sleep 5
           done
+          # The full file list (gh pr view caps files at 100)
+          gh api "repos/$GH_REPO/pulls/$NUMBER/files" --paginate --jq '.[] | {path: .filename}' \
+            | jq -s '{files: .}' > files.json
+          jq -s '.[0] * .[1]' meta.json files.json > pr.json
           gh pr diff "$NUMBER" > pr.diff
+          echo "NUMBER=$NUMBER" >> "$GITHUB_ENV"
+          echo "BASE=$(jq -r .baseRefName pr.json)" >> "$GITHUB_ENV"
+
+      - name: Load the rules from the base branch
+        run: |
+          git fetch --quiet origin "$BASE"
+          mkdir -p "$RUNNER_TEMP/rules"
+          for f in .github/scripts/pr-requirements.mjs docs/requirements/reqs.json; do
+            out="$RUNNER_TEMP/rules/$(basename "$f")"
+            if git cat-file -e "origin/$BASE:$f" 2>/dev/null; then
+              git show "origin/$BASE:$f" > "$out"
+            else
+              # Bootstrap only: the base branch does not have the file yet
+              echo "::warning::$f is not on $BASE yet; using the PR's copy."
+              cp "$f" "$out"
+            fi
+          done
+
+      - name: Check requirements
+        id: check
+        run: |
           set +e
-          node .github/scripts/pr-requirements.mjs pr.json pr.diff docs/requirements/reqs.json report.md
+          node "$RUNNER_TEMP/rules/pr-requirements.mjs" pr.json pr.diff \
+            "$RUNNER_TEMP/rules/reqs.json" report.md docs/requirements/traceability.md
           echo "status=$?" >> "$GITHUB_OUTPUT"
 
       - name: Post report
-        if: steps.pr.outputs.number != ''
-        env:
-          NUMBER: ${{ steps.pr.outputs.number }}
         run: |
           ID=$(gh api "repos/$GH_REPO/issues/$NUMBER/comments" --paginate \
             --jq '.[] | select(.body | startswith("<!-- pr-requirements-report -->")) | .id' | head -1)
@@ -98,12 +135,9 @@ jobs:
           fi
 
       - name: Enable or disable auto-merge
-        if: steps.pr.outputs.number != ''
         env:
-          NUMBER: ${{ steps.pr.outputs.number }}
           STATUS: ${{ steps.check.outputs.status }}
         run: |
-          BASE=$(jq -r .baseRefName pr.json)
           if [ "$STATUS" = "0" ] && [ "$BASE" = "develop" ]; then
             gh pr merge "$NUMBER" --auto --squash \
               || echo "::warning::Could not enable auto-merge. Enable 'Allow auto-merge' in the repository settings."
