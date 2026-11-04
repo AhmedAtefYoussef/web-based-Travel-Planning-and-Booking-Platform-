@@ -53,8 +53,13 @@ export const envSchema = Joi.object<EnvVars>({
     .default(false)
     .when('NODE_ENV', { is: 'production', then: Joi.valid(false) }),
   PORT: Joi.number().port().default(3000),
+  // Not Joi.uri(): the standard Atlas string lists several comma-separated
+  // hosts, which RFC 3986 URIs do not allow.
   MONGODB_URI: Joi.string()
-    .uri({ scheme: ['mongodb', 'mongodb+srv'] })
+    .pattern(
+      /^mongodb(\+srv)?:\/\/([^\s@/]+@)?[^\s@/?]+(\/[^\s?]*)?(\?\S*)?$/,
+      'MongoDB connection string',
+    )
     .required(),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_ACCESS_TTL: Joi.string().pattern(durationPattern).default('15m'),
