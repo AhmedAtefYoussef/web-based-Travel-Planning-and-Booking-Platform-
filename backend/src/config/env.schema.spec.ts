@@ -26,8 +26,8 @@ describe('validateEnv', () => {
 
   it('accepts the Atlas SRV and multi-host standard connection strings', () => {
     const uris = [
-      'mongodb+srv://user:p%40ss@travel-cluster.abc.mongodb.net/travel_platform?retryWrites=true&w=majority',
-      'mongodb://user:pass@h-00.abc.mongodb.net:27017,h-01.abc.mongodb.net:27017,h-02.abc.mongodb.net:27017/travel_platform?ssl=true&authSource=admin&replicaSet=atlas-x-shard-0',
+      'mongodb+srv://<user>:<password>@travel-cluster.abc.mongodb.net/travel_platform?retryWrites=true&w=majority',
+      'mongodb://<user>:<password>@h-00.abc.mongodb.net:27017,h-01.abc.mongodb.net:27017,h-02.abc.mongodb.net:27017/travel_platform?ssl=true&authSource=admin&replicaSet=atlas-x-shard-0',
     ];
     for (const MONGODB_URI of uris) {
       expect(validateEnv({ ...base, MONGODB_URI }).MONGODB_URI).toBe(
@@ -40,7 +40,7 @@ describe('validateEnv', () => {
     for (const MONGODB_URI of [
       'postgres://localhost:5432/db',
       'mongodb://',
-      'mongodb+srv://user:pass@',
+      'mongodb+srv://<user>:<password>@',
       'mongodb://host:27017/db with space',
     ]) {
       expect(() => validateEnv({ ...base, MONGODB_URI })).toThrow(
