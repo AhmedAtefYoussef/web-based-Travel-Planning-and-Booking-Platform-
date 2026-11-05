@@ -89,3 +89,70 @@ How the output was used:
 Reviewed for accuracy against the code; this log was corrected by hand to
 list only prompts that were actually used, with their real dates.
 ================================================
+Date: 2026-11-03
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: PAY-01, PAY-02, PAY-03, PAY-04, GEN-02, GEN-05, GEN-07, GEN-08, GEN-13, ITN-18
+Prompt:
+Make the black-box acceptance suite (written only from the acceptance
+criteria) run against develop without weakening any assertion, write the
+traceability matrix with a run of every proof test, document every endpoint
+in Swagger with its requirement ID, then have a fresh verifier check each
+requirement on a clean clone and fix what it finds.
+How the output was used:
+Merged as PRs #9-#12. The suite exposed one real defect (invalid booking
+totals accepted, PAY-04); the verifier found payments ignored
+PLATFORM_CURRENCY and seven smaller gaps, all fixed with tests.
+================================================
+Date: 2026-11-04
+Student: Ahmed Atef Youssef
+Tool: Claude Code (MongoDB Atlas connector)
+Related Requirement: TRVL-128, TRVL-130
+Prompt:
+Set up a MongoDB Atlas database for the project, prepare per-member access
+instructions and a local env file, verify my connection, and fix whatever
+stops the backend from starting.
+How the output was used:
+Created the Atlas project and free cluster; I created the database users and
+network access myself. The check found the build emitted dist/src/main.js, so
+npm run start:dev failed; fixed in PR #14.
+================================================
+Date: 2026-11-04
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-129
+Prompt:
+Review the PR automation and add GitHub Actions that validate every pull
+request against the technical requirements and the project description rules
+(branch and commit conventions, requirement IDs, tests, Swagger IDs, secrets,
+AI_PROMPTS format, .env.example, OpenAPI drift, traceability), with no
+auto-merge so only I merge.
+How the output was used:
+Merged as PR #17 with branch protection, CODEOWNERS and a develop default
+branch. The review found that no checks were required and that a PR could
+edit its own rules; both were fixed before merging.
+================================================
+Date: 2026-11-04
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-130
+Prompt:
+I cannot connect to the database; check my env file and resolve the error.
+How the output was used:
+Cloudflare WARP broke the mongodb+srv DNS lookup, so my env now uses a direct
+host. The fix also showed the env schema rejected the standard multi-host
+Atlas string; corrected with tests in PR #19.
+================================================
+Date: 2026-11-05
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: TRVL-1 (team process)
+Prompt:
+Run the session handoff: capture every decision and status from the long
+session into the repo, set up CLAUDE.md files, Claude Code hooks, skills,
+commands and agents per docs/agentic/context-engineering-spec.md, verify the
+gates, and open a PR.
+How the output was used:
+Reviewed and merged as the chore/AGENT-context-engineering PR; fresh sessions
+start from .swarm/state.md and .swarm/HANDOFF.md.
+================================================

@@ -10,3 +10,9 @@ coverage/
 .superpowers/
 .claude/worktrees/
 *.log
+
+# Credential handouts and agent scratch (spec §7.1)
+team-db-access/
+.swarm/tmp/
+.swarm/web/
+.claude/settings.local.json
