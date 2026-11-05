@@ -5,6 +5,9 @@ description: Use when asked to write a card, dispatch a worker, plan a new wave,
 
 # Swarm card (template v2)
 
+**Leader only (team mode).** First run `node .claude/hooks/lib/who.mjs`. If `role` is not `leader`, stop and reply:
+"Writing swarm cards and dispatching workers is Leader-only in team mode (CLAUDE.md \"## Roles\"). Ask Ahmed to run it; describe the work in a PR comment or issue."
+
 Write the card to `.swarm/tasks/<id>.md`. Hard limit: <= 150 words (CARD_WORDS in `.swarm/config.md`). All `.swarm` paths are repo-relative, never absolute.
 
 ```

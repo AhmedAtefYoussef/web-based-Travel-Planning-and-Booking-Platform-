@@ -16,3 +16,6 @@ team-db-access/
 .swarm/tmp/
 .swarm/web/
 .claude/settings.local.json
+
+# Per-person Claude Code handoffs (team mode); the Leader handoff is .swarm/HANDOFF.md
+.swarm/handoff/*.md

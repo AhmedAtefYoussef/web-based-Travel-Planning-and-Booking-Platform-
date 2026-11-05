@@ -1,5 +1,5 @@
 # HANDOFF — 2026-11-05 (Leader session 11-02 → 11-05 closed)
-Digest with sources: .swarm/handoff/session-digest.md. Status: .swarm/state.md.
+Digest with sources: .swarm/archive/handoff-2026-11/session-digest.md. Status: .swarm/state.md.
 
 ## Done
 - Ahmed's M1 scope complete and verified: PAY-01..04, GEN-02/05/07/08/13, ITN-18 rates — 10/10 PASS (PRs #1-#12).

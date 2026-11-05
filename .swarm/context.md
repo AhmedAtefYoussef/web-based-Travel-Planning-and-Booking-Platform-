@@ -32,4 +32,4 @@ ts-jest rejects dynamic import(): use require(). Fixtures use <user>:<password> 
 ## web cache (.swarm/web/, not committed)
 Stripe webhooks/testing/refunds/API, Nest raw-body and file-upload, fxratesapi (thin: GET {FX_API_BASE_URL}/latest?base=USD&api_key).
 ## History
-Wave 0-3 cards/results: .swarm/archive/wave-1-3/. Session digest: .swarm/handoff/session-digest.md.
+Wave 0-3 cards/results: .swarm/archive/wave-1-3/. Session digest: .swarm/archive/handoff-2026-11/session-digest.md.

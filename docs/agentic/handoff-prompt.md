@@ -137,6 +137,24 @@ Today's focus: <fill in: e.g. "TRVL-136 release prep for 20 Nov" or "M2 card: AP
 
 ---
 
+## Part C — team members (paste into every fresh session)
+
+Set CLAUDE_TEAM_MEMBER first (docs/team/claude-code-onboarding.md). Then:
+
+```text
+Resume work on this repo as a team member (team mode).
+1. Use the session-resume skill. The SessionStart hook already printed who I am, my owned paths,
+   .swarm/state.md (read-only for me) and my handoff .swarm/handoff/<my-slug>.md.
+2. Tell me in <= 5 lines: base commit, my in-flight work, the next action you propose, and which of
+   MY owned paths it touches (docs/team/ownership.md).
+3. Wait for my go, then work on that ONE requirement ID only, test-first, following CLAUDE.md "## Roles".
+   If it needs a contract, app.module.ts or other Leader-only change, stop and draft a PR comment for Ahmed instead.
+4. At ~50% context or when the unit is done, run /handoff and tell me to /clear.
+Today's focus: <requirement ID and goal, e.g. "FLT-22 seat holds: atomic hold + 10-minute expiry">
+```
+
+---
+
 ## Usage notes
 - Run Part A before the old session auto-compacts. If it compacts anyway, the progress file lets it continue.
 - Part A writes a lot; if it gets to ~85% context, tell it: "Finish the current phase, update progress.md and HANDOFF.md, stop." Then run the remaining phases in a fresh session with Part B plus: "Continue the handoff from .swarm/handoff/progress.md."

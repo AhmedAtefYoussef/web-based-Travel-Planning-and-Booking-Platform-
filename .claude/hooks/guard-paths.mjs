@@ -3,6 +3,16 @@
 // Exit code 2 blocks the tool call; stderr is shown to Claude as the reason.
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, dirname, relative, resolve } from 'node:path';
+import { loadTeam, matches, ownsPath, who } from './lib/who.mjs';
+
+// Team mode (spec §13): paths only the Leader may edit. Members get exit 2 here.
+const LEADER_ONLY = [
+  '.swarm/state.md', '.swarm/context.md', '.swarm/ledger.md', '.swarm/metrics.md', '.swarm/api.md', '.swarm/jira-plan.md',
+  '.swarm/HANDOFF.md', '.swarm/config.md', '.swarm/rules.md', '.swarm/tasks/**', '.swarm/out/**', '.swarm/bin/**', '.swarm/archive/**',
+  'backend/src/app.module.ts', 'backend/src/common/contracts/**', '.github/**', 'docs/requirements/**', '.claude/**',
+];
+// Always fine for members: their own handoff file is added at runtime.
+const MEMBER_SHARED = ['AI_PROMPTS.txt', '.swarm/tmp/**'];
 
 const block = (reason, shown) => {
   console.error(`Blocked by .claude/hooks/guard-paths.mjs: ${reason} (${shown})`);
@@ -53,6 +63,29 @@ try {
   if (rel === 'backend/package-lock.json') block('change dependencies with npm, not by editing the lockfile', rel);
   if (rel === 'docs/requirements/reqs.json' && process.env.ALLOW_REQS_EDIT !== '1') {
     block('reqs.json is the requirements source; set ALLOW_REQS_EDIT=1 to change it deliberately', rel);
+  }
+
+  const me = who();
+  if (me.role !== 'leader') {
+    const path = raw.split('/').map((c) => c.replace(/[. ]+$/, '')).join('/');
+    const own = me.slug ? [`.swarm/handoff/${me.slug}.md`] : [];
+    if (![...own, ...MEMBER_SHARED].some((g) => matches(path, g))) {
+      if (LEADER_ONLY.some((g) => matches(path, g))) {
+        block(
+          `Leader-only path for team members (CLAUDE.md "## Roles"). Ask the Leader in a PR comment or issue instead${me.hint ? `. ${me.hint}` : ''}`,
+          path,
+        );
+      }
+      if (!ownsPath(me, path)) {
+        const owner = loadTeam().find((t) => t.owns.some((g) => matches(path, g)) && t.role !== 'leader');
+        console.log(
+          JSON.stringify({
+            systemMessage: `Team mode warning: ${path} is outside ${me.name ?? 'your'} owned paths${owner ? ` (owned by ${owner.name})` : ''}. ` +
+              'Coordinate with the owner or the Leader before changing it (docs/team/ownership.md).',
+          }),
+        );
+      }
+    }
   }
 } catch {
   block('could not resolve the path (fail closed)', target);

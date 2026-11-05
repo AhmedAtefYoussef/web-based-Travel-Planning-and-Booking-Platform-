@@ -5,6 +5,9 @@ description: Use when asked to sync Jira, update ticket status, or move TRVL iss
 
 # Jira sync
 
+**Leader only (team mode).** First run `node .claude/hooks/lib/who.mjs`. If `role` is not `leader`, stop and reply:
+"Jira sync is Leader-only in team mode (CLAUDE.md \"## Roles\"). Ask Ahmed to run it; describe the work in a PR comment or issue."
+
 Main session only: subagent Jira writes are blocked. Never write without Ahmed's explicit yes in chat.
 
 ## Constants

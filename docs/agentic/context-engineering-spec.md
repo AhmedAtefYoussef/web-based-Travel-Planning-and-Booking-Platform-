@@ -202,19 +202,21 @@ Personal overrides go to `.claude/settings.local.json` (gitignored). Check the h
 ### 5.2 Hooks (Node, so they run the same on Windows and in CI)
 | Hook | Script | Does |
 |---|---|---|
-| SessionStart | `.claude/hooks/session-start.mjs` | Prints state.md, HANDOFF.md, `git status -sb`, branch, last 5 commits, worktree count. Warns if state.md is older than the newest commit on develop. |
+| SessionStart | `.claude/hooks/session-start.mjs` | Team mode (§13): Leader sees state.md + HANDOFF.md; a member sees state.md (read-only), `.swarm/handoff/<slug>.md` and owned paths. Prints state.md, HANDOFF.md, `git status -sb`, branch, last 5 commits, worktree count. Warns if state.md is older than the newest commit on develop. |
 | PreCompact | `.claude/hooks/pre-compact.mjs` | Prints a reminder: "Before compacting, update .swarm/HANDOFF.md". (Can't write the handoff itself; the model must.) |
-| PreToolUse Edit/Write | `.claude/hooks/guard-paths.mjs` | Blocks writes to `.env*` (except `.env.example`), `team-db-access/**`, `backend/package-lock.json`; blocks `docs/requirements/reqs.json` unless `ALLOW_REQS_EDIT=1`. Exit code 2 with a reason. |
+| PreToolUse Edit/Write | `.claude/hooks/guard-paths.mjs` | Blocks writes to `.env*` (except `.env.example`), `team-db-access/**`, `backend/package-lock.json`; blocks `docs/requirements/reqs.json` unless `ALLOW_REQS_EDIT=1`. Exit code 2 with a reason. Team mode (§13): members are blocked on Leader-only paths and warned outside their owned globs. Fails closed. |
+| PreToolUse Bash/PowerShell | `.claude/hooks/guard-bash.mjs` | Blocks shell commands that touch env files or the credential handouts folder; only a single `git ls-files/check-ignore/status` call is allowed there. Fails closed. |
+| (library) | `.claude/hooks/lib/who.mjs` | Team identity: `CLAUDE_TEAM_MEMBER`, else `git config user.name` vs `.claude/team.json`; glob matching for owned paths. |
 
 ### 5.3 Project skills (`.claude/skills/<name>/SKILL.md`)
 | Skill | Trigger | Body (summary) |
 |---|---|---|
-| `session-handoff` | "handoff", "wrap up", ~50% context, before `/clear` | Runs §4.3 exactly; enforces the line budgets; prints the 3-line resume prompt. |
+| `session-handoff` | "handoff", "wrap up", ~50% context, before `/clear` | Leader: runs §4.3 exactly; member: writes only `.swarm/handoff/<slug>.md` (§13); enforces the line budgets; prints the 3-line resume prompt. |
 | `session-resume` | start of session, "resume", "where were we" | Runs §4.1; refuses to read T3 without a specific Grep target. |
-| `swarm-card` | "write a card", "dispatch", new wave | Card template (§6.2), budget check (≤150 words), OWNS disjointness check against other open cards, model routing (§6.1). |
-| `swarm-verify` | a worker returns | Saves result to `out/`, runs `check.py` (with the §6.3 fix), runs DONE WHEN commands itself, records a metrics row, decides merge or fix card (≤ FOLLOWUP_CAP). |
+| `swarm-card` (Leader only) | "write a card", "dispatch", new wave | Card template (§6.2), budget check (≤150 words), OWNS disjointness check against other open cards, model routing (§6.1). |
+| `swarm-verify` (Leader only) | a worker returns | Saves result to `out/`, runs `check.py` (with the §6.3 fix), runs DONE WHEN commands itself, records a metrics row, decides merge or fix card (≤ FOLLOWUP_CAP). |
 | `trace-check` | before a PR or release | Regenerates traceability evidence for the touched IDs with exact `-t` names; refuses PASS without a run. |
-| `jira-sync` | "sync Jira" | Builds a diff table from `jira-plan.md`, shows it to Ahmed, writes only after an explicit yes, main session only. |
+| `jira-sync` (Leader only) | "sync Jira" | Builds a diff table from `jira-plan.md`, shows it to Ahmed, writes only after an explicit yes, main session only. |
 | `m2-feature` | any frontend task | Loads `frontend/CLAUDE.md`, the generated API types, and the requirement rows; TDD with component tests. |
 
 ### 5.4 Slash commands (`.claude/commands/`)
@@ -332,10 +334,40 @@ Definition of Done for any unit:
 6. Clean up merged worktrees (§6.4).
 7. Run the full DoD gate once; record the baseline in `state.md`.
 8. Open a PR `chore/AGENT-context-engineering` (docs/config only), Leader merges.
-9. Start a fresh session with Part B of the handoff prompt and confirm it reaches working context within budget (§0 goal 1). Record the token count in `metrics.md`.
+9. Start a fresh session with Part B of the handoff prompt (members: Part C) and confirm it reaches working context within budget (§0 goal 1). Record the token count in `metrics.md`.
+10. Team mode (§13): ownership.md, team.json, who.mjs, member guard rules, onboarding guide; simulate leader, member and unset identities.
 
 ## 12. Open items carried forward
 - TRVL-128 Atlas cluster + per-member DB users (Ahmed only).
 - TRVL-136 code freeze, bug bash, tag `v1.0.0-m1` on 2026-11-20 (Ahmed only).
 - Unrecorded 11-04 work → capture in step 1.
 - M2 setup (§9) before teammates start frontend work.
+
+## 13. Team mode
+All 7 team members use Claude Code in this repo without colliding; Ahmed keeps Leader-only control.
+
+**Ownership (facts only).** `docs/team/ownership.md` maps each person to requirement IDs (plan.md team ownership matrix
+L613-855 and reqs.json `owner`), owned module paths (plan.md folder layout L108-165), the contracts they implement (which stub
+they replace) and the contracts they consume. Rows with no owner are listed under "Unassigned" (M1: the frontend-only ACC-10,
+GEN-03/04/14-17). `.claude/team.json` is the machine-readable copy: name, slug, githubHandle (null when unknown),
+role (leader|member), owns (globs). No emails or phone numbers.
+
+**Identity.** `.claude/hooks/lib/who.mjs` resolves `CLAUDE_TEAM_MEMBER=<slug>`, else `git config user.name` against the
+team.json names. No match: role member with no owned paths and a one-line setup hint. All hooks and the Leader-only skills use it.
+
+**Handoffs.** The Leader keeps `.swarm/HANDOFF.md` (committed). Each member writes `.swarm/handoff/<slug>.md`, gitignored via
+`.swarm/handoff/*.md`. session-start prints the file for the role; session-handoff and session-resume branch on the role.
+The 2026-11 handoff files moved to `.swarm/archive/handoff-2026-11/`.
+
+**Roles and guardrails.** CLAUDE.md "## Roles" lists the Leader-only paths: `.swarm/{state,context,ledger,metrics,api,jira-plan}.md`,
+HANDOFF.md, task cards, `backend/src/app.module.ts`, `backend/src/common/contracts/`, `.github/`, `docs/requirements/`, `.claude/`.
+guard-paths.mjs blocks members there (exit 2) and warns (systemMessage, exit 0) outside their owned globs. Members may always
+edit their own handoff, `AI_PROMPTS.txt` and `.swarm/tmp/`. swarm-card, swarm-verify and jira-sync refuse to run for members.
+Members put traceability rows in the PR description and the Leader applies them. CODEOWNERS (`*` → Ahmed) and branch protection
+are unchanged; per-module CODEOWNERS is optional.
+
+**Onboarding.** `AGENTS.md` (pointer for other tools), `docs/team/claude-code-onboarding.md` (install, CLAUDE_TEAM_MEMBER, first
+prompt, habits, may / may not, AI_PROMPTS.txt without conflicts) and "Part C — team members" in `docs/agentic/handoff-prompt.md`.
+
+**Limits.** The hooks are guardrails for cooperative agents, not a security boundary: a member can unset the variable or edit
+files outside Claude Code. The real gates stay branch protection, code-owner review and CI.

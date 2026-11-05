@@ -5,6 +5,9 @@ description: Use when a worker subagent returns a result block, or when asked to
 
 # Swarm verify
 
+**Leader only (team mode).** First run `node .claude/hooks/lib/who.mjs`. If `role` is not `leader`, stop and reply:
+"Verifying and merging swarm cards is Leader-only in team mode (CLAUDE.md \"## Roles\"). Ask Ahmed to run it; describe the work in a PR comment or issue."
+
 Inputs: card id `<id>`, worktree path `<worktree>`, base commit `<base>`.
 
 1. Save the worker's inline reply verbatim to `.swarm/out/<id>.md` (workers in worktrees cannot write there).

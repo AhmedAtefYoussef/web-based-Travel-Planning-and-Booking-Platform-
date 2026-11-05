@@ -5,6 +5,14 @@ description: Use when the user says "handoff", "wrap up", "end session", before 
 
 # Session handoff
 
+First run `node .claude/hooks/lib/who.mjs` (team mode, CLAUDE.md "## Roles").
+- **Member** (role `member`): write ONLY `.swarm/handoff/<slug>.md` (overwrite, <= 40 lines, gitignored): done this session,
+  in-flight (branch, last commit, failing tests by name), decisions or contract questions for the Leader, next 3 actions.
+  Add your `AI_PROMPTS.txt` entry (append at the end, your own name in "Student:"), run `node .github/scripts/repo-consistency.mjs`,
+  then print the 3-line resume prompt with `Resume: read .swarm/handoff/<slug>.md`. Never edit state.md, HANDOFF.md, ledger, metrics or context.md.
+- **Unidentified**: stop and ask the user to set CLAUDE_TEAM_MEMBER (docs/team/claude-code-onboarding.md).
+- **Leader**: the steps below.
+
 Write the files in this order. Budgets are hard limits; trim, do not exceed.
 
 1. `.swarm/HANDOFF.md` (overwrite, <= 60 lines):

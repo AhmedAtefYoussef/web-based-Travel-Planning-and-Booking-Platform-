@@ -3,7 +3,7 @@ Team project, GIU Software Project I. Leader: Ahmed (owns merges, Jira, releases
 M1 backend/API due 2026-11-20 (tag v1.0.0-m1). M2 frontend/integration due 2026-12-11.
 
 ## Start of every session
-1. Read .swarm/state.md and .swarm/HANDOFF.md (the SessionStart hook prints them).
+1. Read .swarm/state.md and your handoff (Leader: .swarm/HANDOFF.md; member: .swarm/handoff/<slug>.md). The SessionStart hook prints them.
 2. Do not read whole large files. plan.md, reqs.json, openapi.json, erd.md: Grep or use the line index below.
 3. One unit of work per session. At ~50% context: run /handoff, then /clear.
 
@@ -26,6 +26,18 @@ docs/agentic/context-engineering-spec.md  → operating model (read only to chan
 - Every AI-assisted change gets an AI_PROMPTS.txt entry (format checked by CI).
 - Endpoint changes: Swagger summary starts with [ID]; run npm run openapi:export and commit docs/api/openapi.json (CI drift check).
 - Jira writes: main session only, after Ahmed approves in chat.
+
+## Roles (team mode; identity = CLAUDE_TEAM_MEMBER or git user.name, see .claude/team.json)
+Leader (Ahmed) only: .swarm/{state,context,ledger,metrics,api,jira-plan}.md, .swarm/HANDOFF.md, task cards (.swarm/tasks/),
+  Jira writes, merges, release tags, backend/src/app.module.ts wiring, backend/src/common/contracts/ changes, .github/,
+  docs/requirements/ (incl. traceability.md), .claude/. The guard hook blocks members from these paths.
+Members (Abdelrahman, Malak, Joudy, Karim, Sandra, Sarah):
+- Work only in your owned paths (docs/team/ownership.md); the hook warns outside them.
+- Need a contract, wiring or shared-file change? Open an issue or PR comment for the Leader; do not edit it.
+- Consume other modules only through contract tokens; never import another module's files.
+- One PR per requirement ID; put your traceability rows (ID, test name, command) in the PR description.
+- AI_PROMPTS.txt: append your entry at the end with your own name in "Student:"; rebase on develop before pushing.
+- Your handoff is .swarm/handoff/<slug>.md (gitignored); swarm-card, swarm-verify and jira-sync are Leader-only.
 
 ## Commands (run in backend/)
 npm ci · npm run build · npm run lint · npm test · npm run test:e2e · npm run openapi:export
