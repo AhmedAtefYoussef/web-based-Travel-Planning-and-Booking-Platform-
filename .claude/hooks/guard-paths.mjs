@@ -52,6 +52,8 @@ const real = (p) => {
 try {
   const root = real(process.env.CLAUDE_PROJECT_DIR || process.cwd());
   const raw = relative(root, real(target)).split('\\').join('/');
+  // Outside the project (~/.gitconfig, ~/.claude/settings*, other repos): agents never write there.
+  if (raw === '..' || raw.startsWith('../') || /^[a-zA-Z]:/.test(raw) || raw.startsWith('/')) block('writes outside the project folder', raw);
   // Alternate data streams (file.txt:stream) and other colon tricks are never legitimate here.
   if (raw.split('/').some((c) => c.includes(':'))) block('colon in a path component', raw);
   // Windows ignores trailing dots/spaces and case; macOS ignores case. Normalise every component.

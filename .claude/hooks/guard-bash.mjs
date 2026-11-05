@@ -26,13 +26,16 @@ try {
   const handouts = /team[-_]?db[-_]?access|team-db-\*|team\*db/i;
   // Windows 8.3 short names (TEAM-D~1, ENV~1) can alias protected paths.
   const shortName = /[\w-]{1,8}~\d/;
-  // Agents must not change the identity team mode derives roles from.
-  const setsGitIdentity = /\bgit\b[^\n;&|]*\bconfig\b[^\n;&|]*\buser\.(name|email)\s+\S/i.test(command);
-  if (setsGitIdentity && !/\s--(get|get-all|list)\b|\s-l\b/i.test(command)) {
-    block('changing git user.name/email is not allowed (team-mode identity).');
+  // Agents must not change the identity team mode derives roles from. Fail closed: anything that is not
+  // a single plain read is blocked. (Server-side CODEOWNERS + branch protection remain the real control.)
+  const meta = /[\n\r\u0085\u2028\u2029;&|<>`$(){}'"\\#]/;
+  if (/CLAUDE_TEAM_MEMBER/i.test(command)) {
+    const plainRead = /^[ \t]*(echo[ \t]+\$CLAUDE_TEAM_MEMBER|echo[ \t]+%CLAUDE_TEAM_MEMBER%|\$env:CLAUDE_TEAM_MEMBER|printenv[ \t]+CLAUDE_TEAM_MEMBER)[ \t]*$/i;
+    if (!plainRead.test(command)) block('only the person sets CLAUDE_TEAM_MEMBER (docs/team/claude-code-onboarding.md); agents may only read it.');
   }
-  if (/CLAUDE_TEAM_MEMBER\s*=|setx\s+CLAUDE_TEAM_MEMBER|\$env:CLAUDE_TEAM_MEMBER\s*=|SetEnvironmentVariable\([^)]*CLAUDE_TEAM_MEMBER/i.test(command)) {
-    block('changing CLAUDE_TEAM_MEMBER is done by the person, not the agent (docs/team/claude-code-onboarding.md).');
+  if (/\bgit\b/i.test(command) && /\bconfig\b/i.test(command) && /user\./i.test(command)) {
+    const plainGitRead = /^[ \t]*git[ \t]+config[ \t]+(--get[ \t]+|--get-all[ \t]+)?user\.(name|email)[ \t]*$/i;
+    if (meta.test(command) || !plainGitRead.test(command)) block('changing git user.name/email is not allowed (team-mode identity); only a plain read is.');
   }
   if (![envFile, envGlob, handouts, shortName].some((re) => re.test(command))) process.exit(0);
 

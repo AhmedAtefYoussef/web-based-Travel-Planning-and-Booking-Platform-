@@ -370,4 +370,7 @@ are unchanged; per-module CODEOWNERS is optional.
 prompt, habits, may / may not, AI_PROMPTS.txt without conflicts) and "Part C — team members" in `docs/agentic/handoff-prompt.md`.
 
 **Limits.** The hooks are guardrails for cooperative agents, not a security boundary: a member can unset the variable or edit
-files outside Claude Code. The real gates stay branch protection, code-owner review and CI.
+files outside Claude Code. The real gates stay branch protection, code-owner review and CI. The local "leader" role grants
+nothing on GitHub: it only stops member agents from editing Leader-only files. No local signal can prove identity, so the hooks
+fail closed instead (agents may not change `CLAUDE_TEAM_MEMBER` or git `user.name`/`user.email`, edit `.git/`, or write outside
+the project folder), and further text-pattern findings of this kind are accepted as known limits rather than chased.
