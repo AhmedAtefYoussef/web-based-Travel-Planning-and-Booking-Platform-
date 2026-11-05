@@ -1,6 +1,7 @@
 // PreToolUse hook for Bash/PowerShell: blocks shell commands that touch env files or credential handouts.
-// git metadata commands (ls-files, check-ignore, status) stay allowed so tracking can be audited
-// without reading contents. Exit code 2 blocks the call; stderr is the reason shown to Claude.
+// Defence in depth only (settings.json deny rules and .gitignore are the main protection); it fails closed.
+// A command that mentions a protected path is allowed only if it is ONE git metadata call
+// (ls-files, check-ignore, status) with no shell metacharacters. Exit code 2 blocks the call.
 import { readFileSync } from 'node:fs';
 
 let input = {};
@@ -12,20 +13,19 @@ try {
 const command = String(input.tool_input?.command ?? '');
 if (!command) process.exit(0);
 
-// Mentions of a .env file other than .env.example (any case, any directory).
-const envFile = /(^|[\s"'`=/\\:])\.env(?!\.example\b)(\.[\w.-]*)?(?=$|[\s"'`;|&)<>])/i;
-const handouts = /team-db-access/i;
-if (!envFile.test(command) && !handouts.test(command)) process.exit(0);
+// .env files other than .env.example ("process.env" in scripts is not a file and stays allowed),
+// plus glob forms such as .e*, .en?, .e[n]v that could expand to .env.
+const envFile = /(?<!process)\.env(?!\.example\b)(?![\w])|(?<!process)\.env\.(?!example\b)[\w.-]+/i;
+const envGlob = /\.e[nv]{0,2}[*?[]/i;
+const handouts = /team[-_]?db[-_]?access|team-db-\*|team\*db/i;
+if (!envFile.test(command) && !envGlob.test(command) && !handouts.test(command)) process.exit(0);
 
-// Every part of the command that mentions a protected path must be a read-only git metadata subcommand.
-const segments = command.split(/&&|\|\||;|\|/).map((s) => s.trim()).filter(Boolean);
-const safe = segments
-  .filter((s) => envFile.test(s) || handouts.test(s))
-  .every((s) => /^git\s+(-C\s+\S+\s+)?(ls-files|check-ignore|status)\b/i.test(s));
-if (safe) process.exit(0);
+const simpleGitMetadata =
+  /^\s*git\s+(-C\s+[^\s;&|<>`$()]+\s+)?(ls-files|check-ignore|status)(\s+[^\s;&|<>`$()\n]+)*\s*$/i;
+if (!/[\n;&|<>`$]/.test(command) && simpleGitMetadata.test(command)) process.exit(0);
 
 console.error(
-  'Blocked by .claude/hooks/guard-bash.mjs: the command touches a .env file or team-db-access/. ' +
-    'These hold secrets; never read, print or copy them. Use git ls-files / check-ignore to audit tracking.',
+  'Blocked by .claude/hooks/guard-bash.mjs: the command touches an env file or the credential handouts folder. ' +
+    'These hold secrets; never read, print or copy them. To audit tracking, run a single git ls-files / check-ignore / status call.',
 );
 process.exit(2);
