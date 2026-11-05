@@ -26,6 +26,14 @@ try {
   const handouts = /team[-_]?db[-_]?access|team-db-\*|team\*db/i;
   // Windows 8.3 short names (TEAM-D~1, ENV~1) can alias protected paths.
   const shortName = /[\w-]{1,8}~\d/;
+  // Agents must not change the identity team mode derives roles from.
+  const setsGitIdentity = /\bgit\b[^\n;&|]*\bconfig\b[^\n;&|]*\buser\.(name|email)\s+\S/i.test(command);
+  if (setsGitIdentity && !/\s--(get|get-all|list)\b|\s-l\b/i.test(command)) {
+    block('changing git user.name/email is not allowed (team-mode identity).');
+  }
+  if (/CLAUDE_TEAM_MEMBER\s*=|setx\s+CLAUDE_TEAM_MEMBER|\$env:CLAUDE_TEAM_MEMBER\s*=|SetEnvironmentVariable\([^)]*CLAUDE_TEAM_MEMBER/i.test(command)) {
+    block('changing CLAUDE_TEAM_MEMBER is done by the person, not the agent (docs/team/claude-code-onboarding.md).');
+  }
   if (![envFile, envGlob, handouts, shortName].some((re) => re.test(command))) process.exit(0);
 
   const disallowed = /[\n\r\u0085\u2028\u2029;&|<>`$(){}*?[\]'"\\]/;

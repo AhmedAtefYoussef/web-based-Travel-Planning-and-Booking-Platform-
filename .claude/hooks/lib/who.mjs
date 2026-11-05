@@ -34,10 +34,9 @@ export function who() {
     // no git identity
   }
   if (gitName) {
-    const m =
-      team.find((t) => norm(t.name) === gitName) ??
-      team.find((t) => norm(t.name).split(' ')[0] === gitName.split(' ')[0]);
-    if (m) return { ...m, source: 'git config user.name' };
+    // Exact, unique full-name match only: a fuzzy match must never grant a role (least of all leader).
+    const exact = team.filter((t) => norm(t.name) === gitName);
+    if (exact.length === 1) return { ...exact[0], source: 'git config user.name' };
   }
   return {
     name: null,

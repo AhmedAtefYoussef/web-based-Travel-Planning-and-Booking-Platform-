@@ -60,6 +60,8 @@ try {
   const rel = parts.join('/');
   if (parts.some((c) => /^\.env/i.test(c) && c !== '.env.example')) block('env files hold secrets; edit them by hand', rel);
   if (parts.some((c) => /^team-db-access$/i.test(c) || /~\d/.test(c))) block('team-db-access holds credentials', rel);
+  // Git internals (config holds the identity the team-mode role is derived from).
+  if (parts[0] === '.git') block('git internals are not edited by agents', rel);
   if (rel === 'backend/package-lock.json') block('change dependencies with npm, not by editing the lockfile', rel);
   if (rel === 'docs/requirements/reqs.json' && process.env.ALLOW_REQS_EDIT !== '1') {
     block('reqs.json is the requirements source; set ALLOW_REQS_EDIT=1 to change it deliberately', rel);
