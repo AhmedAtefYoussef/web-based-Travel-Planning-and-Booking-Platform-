@@ -67,6 +67,12 @@ export class Refund {
   paymentIntentId: string;
   @Prop({ type: String, default: null })
   stripeRefundId: string | null;
+  /**
+   * Stripe idempotency key fixed when the refund slot is claimed; reused for
+   * any retry of this claim so Stripe never creates a second refund for it.
+   */
+  @Prop({ type: String, default: null })
+  idempotencyKey: string | null;
   @Prop(minorUnits) amountMinor: number;
   /** Always PLATFORM_CURRENCY, set by the service (no schema default). */
   @Prop({ required: true }) currency: string;

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import Stripe from 'stripe';
@@ -31,6 +31,8 @@ import { STRIPE_CLIENT } from './stripe.provider';
 
 @Injectable()
 export class RefundsService implements RefundsServiceContract {
+  private readonly logger = new Logger(RefundsService.name);
+
   constructor(
     @InjectModel(Refund.name) private readonly refunds: Model<RefundDocument>,
     @InjectModel(Payment.name)
@@ -150,7 +152,13 @@ export class RefundsService implements RefundsServiceContract {
    * paymentIntentId), then creates the Stripe refund and links it. A caller
    * that loses the claim gets the winner's record (created: false) and never
    * calls Stripe. The idempotency key is per PI (and per earlier FAILED
-   * attempt), so both refund paths share it.
+   * attempt), so both refund paths share it; it is stored on the claim.
+   *
+   * Fail closed: the claim is released only when Stripe definitively
+   * rejected the request (invalid_request_error / card_error), i.e. no
+   * refund exists. On any other error (timeout, connection, 5xx, rate
+   * limit, unknown) the refund may exist at Stripe, so the PENDING claim is
+   * kept and blocks further refunds of this PI until it is reconciled.
    */
   private async issue(
     payment: PaymentDocument,
@@ -159,6 +167,10 @@ export class RefundsService implements RefundsServiceContract {
     reason: RefundReason,
     userId: string,
   ): Promise<{ doc: RefundDocument; created: boolean }> {
+    const failed = await this.refunds.countDocuments({
+      paymentIntentId,
+      status: RefundStatus.FAILED,
+    });
     let claim: RefundDocument;
     try {
       claim = await this.refunds.create({
@@ -168,6 +180,10 @@ export class RefundsService implements RefundsServiceContract {
         paymentId: String(payment.id ?? payment._id),
         paymentIntentId,
         stripeRefundId: null,
+        idempotencyKey:
+          failed > 0
+            ? `refund-pi-${paymentIntentId}-${failed}`
+            : `refund-pi-${paymentIntentId}`,
         amountMinor,
         currency: payment.currency,
         reason,
@@ -180,14 +196,8 @@ export class RefundsService implements RefundsServiceContract {
       return { doc: existing, created: false };
     }
 
-    const failed = await this.refunds.countDocuments({
-      paymentIntentId,
-      status: RefundStatus.FAILED,
-    });
     const idempotencyKey =
-      failed > 0
-        ? `refund-pi-${paymentIntentId}-${failed}`
-        : `refund-pi-${paymentIntentId}`;
+      claim.idempotencyKey ?? `refund-pi-${paymentIntentId}`;
     let sr: Stripe.Refund;
     try {
       sr = await this.stripe.refunds.create(
@@ -204,8 +214,15 @@ export class RefundsService implements RefundsServiceContract {
         { idempotencyKey },
       );
     } catch (e) {
-      // Release the claim so a later call can retry the refund.
-      await this.refunds.deleteOne({ _id: claim._id, stripeRefundId: null });
+      if (isDefinitiveStripeRejection(e)) {
+        // No refund was created at Stripe: free the slot for a retry.
+        await this.refunds.deleteOne({ _id: claim._id, stripeRefundId: null });
+      } else {
+        this.logger.warn(
+          `Refund for PaymentIntent ${paymentIntentId} has an unknown outcome; ` +
+            `PENDING claim ${String(claim._id ?? claim.id)} kept for reconciliation`,
+        );
+      }
       throw e;
     }
     const doc = await this.refunds.findOneAndUpdate(
@@ -279,5 +296,31 @@ function isDuplicateKey(e: unknown): boolean {
     typeof e === 'object' &&
     e !== null &&
     (e as { code?: unknown }).code === 11000
+  );
+}
+
+/**
+ * True only for Stripe errors that guarantee no refund was created: the
+ * request was rejected as invalid or declined. Everything else (connection,
+ * timeout, api_error, rate limit, idempotency, unknown) is ambiguous.
+ */
+function isDefinitiveStripeRejection(e: unknown): boolean {
+  if (
+    e instanceof Stripe.errors.StripeInvalidRequestError ||
+    e instanceof Stripe.errors.StripeCardError
+  ) {
+    return true;
+  }
+  if (typeof e !== 'object' || e === null) return false;
+  const { type, rawType } = e as { type?: unknown; rawType?: unknown };
+  const definitive = [
+    'StripeInvalidRequestError',
+    'StripeCardError',
+    'invalid_request_error',
+    'card_error',
+  ];
+  return (
+    (typeof type === 'string' && definitive.includes(type)) ||
+    (typeof rawType === 'string' && definitive.includes(rawType))
   );
 }

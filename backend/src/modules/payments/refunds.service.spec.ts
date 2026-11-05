@@ -5,6 +5,7 @@ import {
 } from '../../common/contracts/booking.contract';
 import { MongoMemoryReplSet } from 'mongodb-memory-server';
 import mongoose, { Connection, Model } from 'mongoose';
+import Stripe from 'stripe';
 import { RefundsService } from './refunds.service';
 import {
   Payment,
@@ -551,17 +552,106 @@ describe('PAY-03/PAY-01/PAY-04: database-level uniqueness', () => {
     expect(notifications.notify).toHaveBeenCalledTimes(1);
   });
 
-  it('a Stripe error releases the claim so a later call can refund', async () => {
+  it('an invalid_request error releases the claim; the retry calls Stripe with the same key', async () => {
     const pay = await payments.create(paymentFields());
     const { svc, stripe } = realService(String(pay._id));
-    stripe.refunds.create.mockRejectedValueOnce(new Error('stripe down'));
+    stripe.refunds.create.mockRejectedValueOnce(
+      new Stripe.errors.StripeInvalidRequestError({
+        type: 'invalid_request_error',
+        message: 'amount too large',
+      } as any),
+    );
     await expect(
       svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
-    ).rejects.toThrow('stripe down');
+    ).rejects.toThrow('amount too large');
     expect(await refunds.countDocuments({})).toBe(0);
     const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
     expect(r?.stripeRefundId).toBe('re_1');
     expect(await refunds.countDocuments({})).toBe(1);
+    const calls = stripe.refunds.create.mock.calls as any[];
+    expect(calls).toHaveLength(2);
+    expect(calls[0][1]).toEqual({ idempotencyKey: 'refund-pi-pi_1' });
+    expect(calls[1][1]).toEqual({ idempotencyKey: 'refund-pi-pi_1' });
+  });
+
+  it('a card_error (raw type) also releases the claim', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe } = realService(String(pay._id));
+    stripe.refunds.create.mockRejectedValueOnce(
+      Object.assign(new Error('declined'), { rawType: 'card_error' }),
+    );
+    await expect(
+      svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+    ).rejects.toThrow('declined');
+    expect(await refunds.countDocuments({})).toBe(0);
+  });
+
+  it.each([
+    [
+      'timeout / connection',
+      () =>
+        new Stripe.errors.StripeConnectionError({
+          message: 'timed out',
+        } as any),
+    ],
+    [
+      'api_error (5xx)',
+      () =>
+        new Stripe.errors.StripeAPIError({
+          type: 'api_error',
+          message: 'timed out',
+        } as any),
+    ],
+    [
+      'rate limit',
+      () =>
+        new Stripe.errors.StripeRateLimitError({
+          type: 'rate_limit_error',
+          message: 'timed out',
+        } as any),
+    ],
+    ['plain Error', () => new Error('timed out')],
+  ])(
+    'an ambiguous %s error keeps the PENDING claim; a second call makes no new Stripe call',
+    async (_label, makeError) => {
+      const pay = await payments.create(paymentFields());
+      const { svc, stripe, notifications } = realService(String(pay._id));
+      stripe.refunds.create.mockRejectedValueOnce(makeError());
+      await expect(
+        svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+      ).rejects.toThrow('timed out');
+      const kept = await refunds.find({}).lean();
+      expect(kept).toHaveLength(1);
+      expect(kept[0]).toMatchObject({
+        paymentIntentId: 'pi_1',
+        status: 'PENDING',
+        stripeRefundId: null,
+        idempotencyKey: 'refund-pi-pi_1',
+      });
+      const again = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+      expect(again?.id).toBe(String(kept[0]._id));
+      expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+      expect(await refunds.countDocuments({})).toBe(1);
+      expect(notifications.notify).not.toHaveBeenCalled();
+      // refundPayment for the same PI is blocked by the kept claim too.
+      await svc.refundPayment(
+        pay,
+        { id: 'pi_1', amount_received: 10001 },
+        'PROVIDER',
+      );
+      expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('the claim stores its idempotency key and Stripe receives that stored key', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe } = realService(String(pay._id));
+    const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+    const stored = await refunds.findById(r!.id).lean();
+    expect(stored?.idempotencyKey).toBe('refund-pi-pi_1');
+    expect((stripe.refunds.create.mock.calls[0] as any[])[1]).toEqual({
+      idempotencyKey: stored?.idempotencyKey,
+    });
   });
 
   it('after a FAILED refund a new refund of the PI uses a fresh idempotency key', async () => {
@@ -575,6 +665,8 @@ describe('PAY-03/PAY-01/PAY-04: database-level uniqueness', () => {
     expect((stripe.refunds.create.mock.calls[0] as any[])[1]).toEqual({
       idempotencyKey: 'refund-pi-pi_1-1',
     });
+    const stored = await refunds.findById(r!.id).lean();
+    expect(stored?.idempotencyKey).toBe('refund-pi-pi_1-1');
   });
 
   it('refunds: one active (PENDING/REFUNDED) refund per paymentIntentId', async () => {
