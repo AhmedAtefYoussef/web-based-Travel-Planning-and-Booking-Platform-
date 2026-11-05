@@ -3,7 +3,17 @@ import {
   BookingStatus,
   BookingType,
 } from '../../common/contracts/booking.contract';
+import { MongoMemoryReplSet } from 'mongodb-memory-server';
+import mongoose, { Connection, Model } from 'mongoose';
 import { RefundsService } from './refunds.service';
+import {
+  Payment,
+  PaymentDocument,
+  PaymentSchema,
+  Refund,
+  RefundDocument,
+  RefundSchema,
+} from './schemas';
 
 const tiers = [
   { daysBefore: 7, refundPercent: 100 },
@@ -31,12 +41,19 @@ function setup(days: number) {
       currency: 'USD',
     })),
   };
+  let lastCreated: any = null;
   const refundModel = {
-    create: jest.fn(async (d: any) => ({ id: 'r1', ...d })),
+    create: jest.fn(async (d: any) => (lastCreated = { id: 'r1', ...d })),
     findOne: jest.fn(async (): Promise<any> => null),
     findOneAndUpdate: jest.fn(async (_f: any, u: any): Promise<any> =>
-      u?.$setOnInsert ? { id: 'r1', ...u.$setOnInsert } : null,
+      u?.$setOnInsert
+        ? { id: 'r1', ...u.$setOnInsert }
+        : u?.$set && lastCreated
+          ? { ...lastCreated, ...u.$set }
+          : null,
     ),
+    countDocuments: jest.fn(async (): Promise<number> => 0),
+    deleteOne: jest.fn(async () => ({ deletedCount: 1 })),
     findById: jest.fn(),
   };
   const stripe = {
@@ -97,19 +114,27 @@ describe('RefundsService.refundFor', () => {
       expect.objectContaining({ payment_intent: 'pi_1', amount: 5000 }),
       expect.anything(),
     );
-    expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
-      { stripeRefundId: 're_1' },
-      {
-        $setOnInsert: expect.objectContaining({
-          status: 'PENDING',
-          stripeRefundId: 're_1',
-          paymentIntentId: 'pi_1',
-          amountMinor: 5000,
-          reason: 'USER',
-        }),
-      },
-      { upsert: true, new: true },
+    // Claimed as PENDING before Stripe is called, then linked to the refund.
+    expect(refundModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'PENDING',
+        stripeRefundId: null,
+        paymentIntentId: 'pi_1',
+        amountMinor: 5000,
+        reason: 'USER',
+      }),
     );
+    expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.anything(),
+      { $set: { stripeRefundId: 're_1' } },
+      { new: true },
+    );
+    expect(r).toMatchObject({
+      status: 'PENDING',
+      stripeRefundId: 're_1',
+      amountMinor: 5000,
+      reason: 'USER',
+    });
     expect(notifications.notify).toHaveBeenCalledWith(
       'u1',
       expect.objectContaining({ type: 'REFUND_ISSUED' }),
@@ -152,15 +177,16 @@ describe('RefundsService.refundPayment', () => {
       expect.objectContaining({ payment_intent: 'pi_old', amount: 777 }),
       { idempotencyKey: 'refund-pi-pi_old' },
     );
+    expect(refundModel.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 'PENDING',
+        reason: 'PROVIDER',
+        amountMinor: 777,
+      }),
+    );
     expect(refundModel.findOneAndUpdate).toHaveBeenCalledWith(
-      { stripeRefundId: 're_1' },
-      {
-        $setOnInsert: expect.objectContaining({
-          status: 'PENDING',
-          reason: 'PROVIDER',
-          amountMinor: 777,
-        }),
-      },
+      expect.anything(),
+      { $set: { stripeRefundId: 're_1' } },
       expect.anything(),
     );
   });
@@ -359,5 +385,289 @@ describe('PAY-03: refund notifications and minor units', () => {
     await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
     await svc.applyStripeRefund({ id: 're_1', status: 'pending' } as any);
     expect(notifications.notify).not.toHaveBeenCalled();
+  });
+});
+
+describe('PAY-03 F5: zero captured amount', () => {
+  it('refundPayment(pay, {amount_received: 0}) returns null and never calls stripe.refunds.create', async () => {
+    const { svc, stripe, refundModel, notifications } = setup(0);
+    const r = await svc.refundPayment(
+      {
+        id: 'pay1',
+        bookingType: BookingType.HOTEL,
+        bookingId: 'b1',
+        userId: 'u1',
+        amountMinor: 777,
+        currency: 'USD',
+      } as any,
+      { id: 'pi_zero', amount_received: 0 },
+      'PROVIDER',
+    );
+    expect(r).toBeNull();
+    expect(stripe.refunds.create).not.toHaveBeenCalled();
+    expect(refundModel.create).not.toHaveBeenCalled();
+    expect(refundModel.findOneAndUpdate).not.toHaveBeenCalled();
+    expect(notifications.notify).not.toHaveBeenCalled();
+  });
+});
+
+describe('PAY-03 F4: one idempotency key per PaymentIntent', () => {
+  it('refundFor uses the same key as refundPayment (refund-pi-<PI>)', async () => {
+    const { svc, stripe } = setup(0);
+    await svc.refundFor(BookingType.HOTEL, 'b1', 'PROVIDER');
+    expect(stripe.refunds.create).toHaveBeenCalledWith(expect.anything(), {
+      idempotencyKey: 'refund-pi-pi_1',
+    });
+  });
+});
+
+/* Real Mongo (replica set): the dedupe must hold at the database level. */
+describe('PAY-03/PAY-01/PAY-04: database-level uniqueness', () => {
+  let mongo: MongoMemoryReplSet;
+  let conn: Connection;
+  let payments: Model<PaymentDocument>;
+  let refunds: Model<RefundDocument>;
+
+  beforeAll(async () => {
+    mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+    conn = await mongoose
+      .createConnection(mongo.getUri('refunds_spec'), { autoIndex: false })
+      .asPromise();
+    payments = conn.model<PaymentDocument>(Payment.name, PaymentSchema);
+    refunds = conn.model<RefundDocument>(Refund.name, RefundSchema);
+    // Build every unique/partial index before asserting on it.
+    await payments.syncIndexes();
+    await refunds.syncIndexes();
+  }, 120_000);
+  afterAll(async () => {
+    await conn?.close();
+    await mongo?.stop();
+  });
+  beforeEach(async () => {
+    await payments.deleteMany({});
+    await refunds.deleteMany({});
+  });
+
+  const paymentFields = (over: Record<string, unknown> = {}) => ({
+    bookingType: BookingType.HOTEL,
+    bookingId: 'b1',
+    userId: 'u1',
+    stripeId: 'pi_1',
+    amountMinor: 10001,
+    currency: 'USD',
+    status: 'SUCCEEDED',
+    ...over,
+  });
+  const refundFields = (over: Record<string, unknown> = {}) => ({
+    bookingType: BookingType.HOTEL,
+    bookingId: 'b1',
+    userId: 'u1',
+    paymentId: 'pay1',
+    paymentIntentId: 'pi_1',
+    amountMinor: 100,
+    currency: 'USD',
+    reason: 'USER',
+    status: 'PENDING',
+    ...over,
+  });
+
+  function realService(paymentId: string) {
+    let n = 0;
+    const stripe = {
+      refunds: {
+        // Yields to the event loop so concurrent callers interleave.
+        create: jest.fn(async (): Promise<any> => {
+          await new Promise((r) => setTimeout(r, 20));
+          return { id: `re_${++n}` };
+        }),
+      },
+      paymentIntents: {
+        retrieve: jest.fn(async (id: string) => ({
+          id,
+          amount_received: 10001,
+        })),
+      },
+    };
+    const view = {
+      userId: 'u1',
+      totalMinor: 10001,
+      status: BookingStatus.CONFIRMED,
+      holdExpiresAt: null,
+      policiesAcceptedAt: new Date(),
+      providerId: 'p',
+      serviceStartsAt: new Date(Date.now() + 30 * 86_400_000),
+      timeZone: 'UTC',
+      policySnapshot: { kind: 'HOTEL', tiers } as any,
+      paymentId,
+    };
+    const notifications = { notify: jest.fn(async () => undefined) };
+    const svc = new RefundsService(
+      refunds,
+      payments,
+      stripe as any,
+      { getPayable: jest.fn(async () => view) } as any,
+      notifications,
+    );
+    return { svc, stripe, notifications };
+  }
+
+  it('refundFor twice for the same booking issues one refunds.create', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe, notifications } = realService(String(pay._id));
+    const a = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+    const b = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(b?.id).toBe(a?.id);
+    expect(await refunds.countDocuments({})).toBe(1);
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('concurrent refundFor calls issue one refund', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe } = realService(String(pay._id));
+    const [a, b] = await Promise.all([
+      svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+      svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+    ]);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(a?.id).toBe(b?.id);
+    expect(await refunds.countDocuments({})).toBe(1);
+  });
+
+  it('parallel refundFor + refundPayment -> one refund', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe, notifications } = realService(String(pay._id));
+    const [a, b] = await Promise.all([
+      svc.refundFor(BookingType.HOTEL, 'b1', 'PROVIDER'),
+      svc.refundPayment(
+        pay,
+        { id: 'pi_1', amount_received: 10001 },
+        'PROVIDER',
+      ),
+    ]);
+    expect(stripe.refunds.create).toHaveBeenCalledTimes(1);
+    expect(a?.id).toBe(b?.id);
+    expect(await refunds.countDocuments({ paymentIntentId: 'pi_1' })).toBe(1);
+    expect(notifications.notify).toHaveBeenCalledTimes(1);
+  });
+
+  it('a Stripe error releases the claim so a later call can refund', async () => {
+    const pay = await payments.create(paymentFields());
+    const { svc, stripe } = realService(String(pay._id));
+    stripe.refunds.create.mockRejectedValueOnce(new Error('stripe down'));
+    await expect(
+      svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+    ).rejects.toThrow('stripe down');
+    expect(await refunds.countDocuments({})).toBe(0);
+    const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+    expect(r?.stripeRefundId).toBe('re_1');
+    expect(await refunds.countDocuments({})).toBe(1);
+  });
+
+  it('after a FAILED refund a new refund of the PI uses a fresh idempotency key', async () => {
+    const pay = await payments.create(paymentFields());
+    await refunds.create(
+      refundFields({ status: 'FAILED', stripeRefundId: 're_old' }),
+    );
+    const { svc, stripe } = realService(String(pay._id));
+    const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+    expect(r?.stripeRefundId).toBe('re_1');
+    expect((stripe.refunds.create.mock.calls[0] as any[])[1]).toEqual({
+      idempotencyKey: 'refund-pi-pi_1-1',
+    });
+  });
+
+  it('refunds: one active (PENDING/REFUNDED) refund per paymentIntentId', async () => {
+    await refunds.create(refundFields({ status: 'FAILED' }));
+    await refunds.create(refundFields({ status: 'FAILED' }));
+    await refunds.create(refundFields({ status: 'PENDING' }));
+    await expect(
+      refunds.create(refundFields({ status: 'PENDING' })),
+    ).rejects.toMatchObject({ code: 11000 });
+    await expect(
+      refunds.create(refundFields({ status: 'REFUNDED' })),
+    ).rejects.toMatchObject({ code: 11000 });
+    await refunds.create(refundFields({ paymentIntentId: 'pi_2' }));
+  });
+
+  it('payments: stripeId is unique', async () => {
+    await payments.create(paymentFields());
+    await expect(
+      payments.create(paymentFields({ bookingId: 'b2' })),
+    ).rejects.toMatchObject({ code: 11000 });
+  });
+
+  it('payments: one PENDING payment per booking', async () => {
+    await payments.create(
+      paymentFields({ stripeId: 'pi_a', status: 'FAILED' }),
+    );
+    await payments.create(
+      paymentFields({ stripeId: 'pi_b', status: 'PENDING' }),
+    );
+    await expect(
+      payments.create(paymentFields({ stripeId: 'pi_c', status: 'PENDING' })),
+    ).rejects.toMatchObject({ code: 11000 });
+    // Another booking, or another booking type, is independent.
+    await payments.create(
+      paymentFields({ stripeId: 'pi_d', status: 'PENDING', bookingId: 'b2' }),
+    );
+    await payments.create(
+      paymentFields({
+        stripeId: 'pi_e',
+        status: 'PENDING',
+        bookingType: BookingType.FLIGHT,
+      }),
+    );
+  });
+});
+
+describe('PAY-04 F13: amounts are integer minor units', () => {
+  const PaymentModel = mongoose.model<PaymentDocument>(
+    'PaymentValidation',
+    PaymentSchema,
+  );
+  const RefundModel = mongoose.model<RefundDocument>(
+    'RefundValidation',
+    RefundSchema,
+  );
+  const base = {
+    bookingType: BookingType.HOTEL,
+    bookingId: 'b1',
+    userId: 'u1',
+    currency: 'USD',
+  };
+  it('saving Payment with amountMinor 10.5 fails validation', () => {
+    const err = new PaymentModel({
+      ...base,
+      stripeId: 'pi_1',
+      amountMinor: 10.5,
+    }).validateSync();
+    expect(err?.errors.amountMinor).toBeDefined();
+  });
+  it('saving Refund with amountMinor 10.5 fails validation', () => {
+    const err = new RefundModel({
+      ...base,
+      paymentId: 'pay1',
+      paymentIntentId: 'pi_1',
+      amountMinor: 10.5,
+      reason: 'USER',
+    }).validateSync();
+    expect(err?.errors.amountMinor).toBeDefined();
+  });
+  it('negative amounts are rejected; integers pass', () => {
+    expect(
+      new PaymentModel({
+        ...base,
+        stripeId: 'pi_1',
+        amountMinor: -1,
+      }).validateSync()?.errors.amountMinor,
+    ).toBeDefined();
+    expect(
+      new PaymentModel({
+        ...base,
+        stripeId: 'pi_1',
+        amountMinor: 10001,
+      }).validateSync(),
+    ).toBeUndefined();
   });
 });

@@ -93,15 +93,14 @@ export class RefundsService implements RefundsServiceContract {
     }
     if (!(amountMinor > 0)) return null;
 
-    const doc = await this.issue(
+    const { doc, created } = await this.issue(
       payment,
       payment.stripeId,
       amountMinor,
       reason,
-      `refund-pi-${payment.stripeId}-${reason}`,
       view.userId,
     );
-    await this.notifyIssued(doc, view.userId);
+    if (created) await this.notifyIssued(doc, view.userId);
     return toRecord(doc);
   }
 
@@ -119,15 +118,14 @@ export class RefundsService implements RefundsServiceContract {
     if (existing) return toRecord(existing);
     const amountMinor = intent.amount_received;
     if (!(amountMinor > 0)) return null;
-    const doc = await this.issue(
+    const { doc, created } = await this.issue(
       payment,
       intent.id,
       amountMinor,
       reason,
-      `refund-pi-${intent.id}`,
       payment.userId,
     );
-    await this.notifyIssued(doc, payment.userId);
+    if (created) await this.notifyIssued(doc, payment.userId);
     return toRecord(doc);
   }
 
@@ -147,48 +145,76 @@ export class RefundsService implements RefundsServiceContract {
     });
   }
 
-  /** Creates the Stripe refund and upserts its local record (by refund id). */
+  /**
+   * Claims the PI's single active refund slot (partial unique index on
+   * paymentIntentId), then creates the Stripe refund and links it. A caller
+   * that loses the claim gets the winner's record (created: false) and never
+   * calls Stripe. The idempotency key is per PI (and per earlier FAILED
+   * attempt), so both refund paths share it.
+   */
   private async issue(
     payment: PaymentDocument,
     paymentIntentId: string,
     amountMinor: MinorUnits,
     reason: RefundReason,
-    idempotencyKey: string,
     userId: string,
-  ): Promise<RefundDocument> {
-    const sr = await this.stripe.refunds.create(
-      {
-        payment_intent: paymentIntentId,
-        amount: amountMinor,
-        metadata: {
-          bookingType: payment.bookingType,
-          bookingId: payment.bookingId,
-          paymentIntentId,
-          reason,
-        },
-      },
-      { idempotencyKey },
-    );
-    const fields = {
-      bookingType: payment.bookingType,
-      bookingId: payment.bookingId,
-      userId,
-      paymentId: String(payment.id ?? payment._id),
+  ): Promise<{ doc: RefundDocument; created: boolean }> {
+    let claim: RefundDocument;
+    try {
+      claim = await this.refunds.create({
+        bookingType: payment.bookingType,
+        bookingId: payment.bookingId,
+        userId,
+        paymentId: String(payment.id ?? payment._id),
+        paymentIntentId,
+        stripeRefundId: null,
+        amountMinor,
+        currency: payment.currency,
+        reason,
+        status: RefundStatus.PENDING,
+      });
+    } catch (e) {
+      if (!isDuplicateKey(e)) throw e;
+      const existing = await this.activeRefundFor(paymentIntentId);
+      if (!existing) throw e;
+      return { doc: existing, created: false };
+    }
+
+    const failed = await this.refunds.countDocuments({
       paymentIntentId,
-      stripeRefundId: sr.id,
-      amountMinor,
-      currency: payment.currency,
-      reason,
-      status: RefundStatus.PENDING,
-    };
+      status: RefundStatus.FAILED,
+    });
+    const idempotencyKey =
+      failed > 0
+        ? `refund-pi-${paymentIntentId}-${failed}`
+        : `refund-pi-${paymentIntentId}`;
+    let sr: Stripe.Refund;
+    try {
+      sr = await this.stripe.refunds.create(
+        {
+          payment_intent: paymentIntentId,
+          amount: amountMinor,
+          metadata: {
+            bookingType: payment.bookingType,
+            bookingId: payment.bookingId,
+            paymentIntentId,
+            reason,
+          },
+        },
+        { idempotencyKey },
+      );
+    } catch (e) {
+      // Release the claim so a later call can retry the refund.
+      await this.refunds.deleteOne({ _id: claim._id, stripeRefundId: null });
+      throw e;
+    }
     const doc = await this.refunds.findOneAndUpdate(
-      { stripeRefundId: sr.id },
-      { $setOnInsert: fields },
-      { upsert: true, new: true },
+      { _id: claim._id },
+      { $set: { stripeRefundId: sr.id } },
+      { new: true },
     );
-    // upsert + new always yields a document; guard anyway.
     if (!doc) throw new Error(`Refund ${sr.id} was not recorded`);
-    return doc;
+    return { doc, created: true };
   }
 
   /** Webhook: refund.updated / charge.refund.updated. */
@@ -246,4 +272,12 @@ function toRecord(d: RefundDocument): RefundRecord {
     createdAt: o.createdAt,
     updatedAt: o.updatedAt,
   };
+}
+
+function isDuplicateKey(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { code?: unknown }).code === 11000
+  );
 }
