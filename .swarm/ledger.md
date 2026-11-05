@@ -17,3 +17,4 @@ PR#15 Ahmed: release develop -> main (2026-11-04)
 PR#17 Leader: .github/{workflows/ci,pr-open,pr-automation.yml,scripts/pr-requirements.mjs,repo-consistency.mjs,CODEOWNERS}, README merging section
 PR#19 Leader: backend/src/config/env.schema(.spec).ts MONGODB_URI pattern (multi-host)
 #18 closed (main -> develop back-merge, no files)
+PR#21 Leader: v2 operating model (CLAUDE.md files, .claude/ hooks/skills/agents, .swarm refresh) merged -> develop 6efa26b
