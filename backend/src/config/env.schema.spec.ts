@@ -1,6 +1,7 @@
 import { validateEnv } from './env.schema';
 
 const base = {
+  NODE_ENV: 'development',
   MONGODB_URI: 'mongodb://localhost:27017/travel',
   JWT_SECRET: 'x'.repeat(32),
 };
@@ -85,5 +86,73 @@ describe('validateEnv', () => {
     }
     expect(message).toContain('STRIPE_SECRET_KEY');
     expect(message).not.toContain(secret);
+  });
+
+  describe('fails closed for unsafe production settings [TRVL-130]', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      COOKIE_SECURE: 'true',
+      STRIPE_SECRET_KEY: 'sk_test_x',
+      STRIPE_WEBHOOK_SECRET: 'whsec_x',
+    };
+
+    it('accepts a safe production configuration', () => {
+      const env = validateEnv(prod);
+      expect(env.COOKIE_SECURE).toBe(true);
+      expect(env.STRIPE_ALLOW_LIVE_KEYS).toBe(false);
+    });
+
+    it('missing NODE_ENV throws outside the test bootstrap', () => {
+      const withoutNodeEnv: Record<string, unknown> = { ...base };
+      delete withoutNodeEnv.NODE_ENV;
+      expect(() => validateEnv(withoutNodeEnv)).toThrow(/NODE_ENV/);
+      expect(() => validateEnv({ ...base, NODE_ENV: '' })).toThrow(/NODE_ENV/);
+    });
+
+    it.each(['sk_live_x', 'rk_live_x'])(
+      'rejects live Stripe key %s unless STRIPE_ALLOW_LIVE_KEYS=true',
+      (key) => {
+        for (const NODE_ENV of ['development', 'test', 'production']) {
+          expect(() =>
+            validateEnv({ ...prod, NODE_ENV, STRIPE_SECRET_KEY: key }),
+          ).toThrow(/STRIPE_SECRET_KEY/);
+        }
+        expect(
+          validateEnv({
+            ...prod,
+            STRIPE_SECRET_KEY: key,
+            STRIPE_ALLOW_LIVE_KEYS: 'true',
+          }).STRIPE_SECRET_KEY,
+        ).toBe(key);
+      },
+    );
+
+    it('does not echo a rejected live key in the error', () => {
+      const key = 'sk_live_do_not_print';
+      let message = '';
+      try {
+        validateEnv({ ...prod, STRIPE_SECRET_KEY: key });
+      } catch (e) {
+        message = (e as Error).message;
+      }
+      expect(message).toContain('STRIPE_SECRET_KEY');
+      expect(message).not.toContain(key);
+    });
+
+    it('production with COOKIE_SECURE=false throws', () => {
+      expect(() => validateEnv({ ...prod, COOKIE_SECURE: 'false' })).toThrow(
+        /COOKIE_SECURE/,
+      );
+      const unset: Record<string, unknown> = { ...prod };
+      delete unset.COOKIE_SECURE;
+      expect(() => validateEnv(unset)).toThrow(/COOKIE_SECURE/);
+    });
+
+    it('production with DEV_AUTH_ENABLED=true throws', () => {
+      expect(() => validateEnv({ ...prod, DEV_AUTH_ENABLED: 'true' })).toThrow(
+        /DEV_AUTH_ENABLED/,
+      );
+    });
   });
 });
