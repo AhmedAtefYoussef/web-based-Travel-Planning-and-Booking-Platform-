@@ -3,6 +3,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { basename } from 'node:path';
 import { BadRequestException, INestApplication } from '@nestjs/common';
+import { getModelToken } from '@nestjs/mongoose';
 import request from 'supertest';
 import type { AuditService } from '../src/common/contracts/audit.contract';
 import type { CurrencyService } from '../src/common/contracts/currency.contract';
@@ -168,6 +169,34 @@ describe('Audit, uploads, currency (e2e)', () => {
         expect([404, 405]).toContain(res.status);
       }
       await http().delete('/api/admin/audit-logs').set(asAdmin()).expect(404);
+    });
+
+    it('record() persists metadata', async () => {
+      await audit.record({
+        actorId: actorA,
+        action: 'META_CHECK',
+        targetType: 'USER',
+        targetId: 'meta1',
+        metadata: { reason: 'x', n: 2 },
+      });
+      const m: any = app.get(getModelToken('AuditLog'));
+      const doc = await m.findOne({ targetId: 'meta1' }).lean();
+      expect(doc.metadata).toEqual({ reason: 'x', n: 2 });
+    });
+
+    it('updateOne and bulkWrite update/delete are rejected as immutable', async () => {
+      const m: any = app.get(getModelToken('AuditLog'));
+      await expect(
+        m.updateOne({ targetId: 'meta1' }, { action: 'X' }),
+      ).rejects.toThrow('immutable');
+      await expect(
+        m.bulkWrite([
+          { updateOne: { filter: {}, update: { $set: { action: 'X' } } } },
+        ]),
+      ).rejects.toThrow('immutable');
+      await expect(
+        m.bulkWrite([{ deleteMany: { filter: {} } }]),
+      ).rejects.toThrow('immutable');
     });
   });
 

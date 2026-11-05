@@ -31,6 +31,29 @@ describe('AuditLogSchema immutability hooks', () => {
     await expect(run()).rejects.toThrow('Audit log entries are immutable');
   });
 
+  const bulk: [string, any][] = [
+    ['updateOne', { updateOne: { filter: {}, update: { $set: patch } } }],
+    ['updateMany', { updateMany: { filter: {}, update: { $set: patch } } }],
+    ['replaceOne', { replaceOne: { filter: {}, replacement: patch } }],
+    ['deleteOne', { deleteOne: { filter: {} } }],
+    ['deleteMany', { deleteMany: { filter: {} } }],
+  ];
+
+  it.each(bulk)('bulkWrite %s is rejected', async (_name, op) => {
+    await expect(AuditLog.bulkWrite([op])).rejects.toThrow(
+      'Audit log entries are immutable',
+    );
+  });
+
+  it('bulkWrite mixing insertOne with a delete is rejected', async () => {
+    await expect(
+      AuditLog.bulkWrite([
+        { insertOne: { document: { action: 'A' } } },
+        { deleteOne: { filter: {} } },
+      ]),
+    ).rejects.toThrow('Audit log entries are immutable');
+  });
+
   it('re-saving an existing entry is rejected', async () => {
     const doc = new AuditLog({ action: 'A', targetType: 'T', targetId: '1' });
     doc.isNew = false;
