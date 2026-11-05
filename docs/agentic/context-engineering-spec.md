@@ -354,6 +354,8 @@ role (leader|member), owns (globs). No emails or phone numbers.
 
 **Identity.** `.claude/hooks/lib/who.mjs` resolves `CLAUDE_TEAM_MEMBER=<slug>`, else `git config user.name` against the
 team.json names. No match: role member with no owned paths and a one-line setup hint. All hooks and the Leader-only skills use it.
+The Leader role comes only from `CLAUDE_TEAM_MEMBER=ahmed` (set by Ahmed outside Claude Code; agents are blocked from setting it):
+a git user.name match grants the member role only, because an agent could rewrite git config.
 
 **Handoffs.** The Leader keeps `.swarm/HANDOFF.md` (committed). Each member writes `.swarm/handoff/<slug>.md`, gitignored via
 `.swarm/handoff/*.md`. session-start prints the file for the role; session-handoff and session-resume branch on the role.

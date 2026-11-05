@@ -27,7 +27,8 @@ docs/agentic/context-engineering-spec.md  → operating model (read only to chan
 - Endpoint changes: Swagger summary starts with [ID]; run npm run openapi:export and commit docs/api/openapi.json (CI drift check).
 - Jira writes: main session only, after Ahmed approves in chat.
 
-## Roles (team mode; identity = CLAUDE_TEAM_MEMBER or git user.name, see .claude/team.json)
+## Roles (team mode; identity = CLAUDE_TEAM_MEMBER, else git user.name for members only; .claude/team.json)
+The Leader role requires CLAUDE_TEAM_MEMBER=ahmed, set by Ahmed outside Claude Code (a git-name match never grants it).
 Leader (Ahmed) only: .swarm/{state,context,ledger,metrics,api,jira-plan}.md, .swarm/HANDOFF.md, task cards (.swarm/tasks/),
   Jira writes, merges, release tags, backend/src/app.module.ts wiring, backend/src/common/contracts/ changes, .github/,
   docs/requirements/ (incl. traceability.md), .claude/. The guard hook blocks members from these paths.

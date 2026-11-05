@@ -36,7 +36,18 @@ export function who() {
   if (gitName) {
     // Exact, unique full-name match only: a fuzzy match must never grant a role (least of all leader).
     const exact = team.filter((t) => norm(t.name) === gitName);
-    if (exact.length === 1) return { ...exact[0], source: 'git config user.name' };
+    if (exact.length === 1) {
+      // git config is writable by an agent, so it never grants the leader role.
+      if (exact[0].role === 'leader') {
+        return {
+          ...exact[0],
+          role: 'member',
+          source: 'git config user.name',
+          hint: 'Leader role needs CLAUDE_TEAM_MEMBER=ahmed set outside Claude Code (git user.name alone grants member only).',
+        };
+      }
+      return { ...exact[0], source: 'git config user.name' };
+    }
   }
   return {
     name: null,

@@ -24,6 +24,7 @@ export CLAUDE_TEAM_MEMBER=karim
 ```
 Check it: `node .claude/hooks/lib/who.mjs` should print your name and `"role": "member"`.
 If it is not set, the hooks fall back to `git config user.name`; if that does not match, you get no owned paths.
+Ahmed (Leader) must set `CLAUDE_TEAM_MEMBER=ahmed` the same way: a git-name match alone only grants the member role.
 
 ## 4. First session prompt (copy as is)
 See "Part C — team members" in docs/agentic/handoff-prompt.md.
