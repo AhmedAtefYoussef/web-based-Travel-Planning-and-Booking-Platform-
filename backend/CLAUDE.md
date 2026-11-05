@@ -9,10 +9,11 @@
 - scripts/: ts-node tools (export-openapi, demo-server); excluded from the build (tsconfig.build.json). CI asserts dist/main.js.
 
 ## Contracts (inject by token, never import another module)
-PAYABLE_BOOKING (stub → Karim) · POLICIES_PROVIDER (stub → Joudy airline, Sandra hotel) · NOTIFICATIONS_SERVICE (stub → Karim) ·
+PAYABLE_BOOKING (stub → Ahmed hold/confirm/lifecycle + Karim booking views/cancel) · POLICIES_PROVIDER (stub → Joudy airline, Sandra hotel) · NOTIFICATIONS_SERVICE (stub → Karim) ·
 PAYMENTS_SERVICE · REFUNDS_SERVICE · CURRENCY_SERVICE · AUDIT_SERVICE · UPLOADS_SERVICE (real, Ahmed).
 Replace a stub in the owning module with { provide: TOKEN, useExisting: RealService }.
-Karim's hold-expiry job calls PaymentsService.cancelForExpiredHold; cancellations call RefundsService.refundFor.
+The hold-expiry job (GEN-11, Ahmed) calls PaymentsService.cancelForExpiredHold; cancellations (Karim) call RefundsService.refundFor.
+Ownership per person and shared modules: docs/team/ownership.md (Jira is the source of truth).
 
 ## Auth in dev/test
 DEV_AUTH_ENABLED=true and NODE_ENV development|test enable x-dev-user-id / x-dev-role / x-dev-provider headers (Swagger "Authorize").

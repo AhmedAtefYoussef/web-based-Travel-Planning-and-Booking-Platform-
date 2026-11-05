@@ -2,7 +2,8 @@
 Digest with sources: .swarm/archive/handoff-2026-11/session-digest.md. Status: .swarm/state.md.
 
 ## Done
-- Ahmed's M1 scope complete and verified: PAY-01..04, GEN-02/05/07/08/13, ITN-18 rates — 10/10 PASS (PRs #1-#12).
+- Payments/foundation scope verified: PAY-01..04, GEN-02/05/07/08/13, ITN-18 rates — 10/10 PASS (PRs #1-#12).
+- Jira (2026-11-05) also assigns Ahmed the booking engine: FLT-12, FLT-22, FLT-23, HTL-16, HTL-17, HTL-18, GEN-11, TRVL-144 — all To Do.
 - Releases develop -> main: #13 (11-03), #15 (11-04). Jira synced: 18 Done, 2 In Progress (TRVL-1, TRVL-136).
 - Atlas cluster + member users + handouts (TRVL-128 Done). Build fix #14. MONGODB_URI multi-host fix #19.
 - PR gate #17: CI build-lint-test + pr-requirements required; CODEOWNERS * -> Ahmed; auto-merge off; default branch develop.
@@ -17,10 +18,9 @@ Dev auth opt-in · Stripe late/superseded success refunded · build excludes scr
 no auto-merge, CODEOWNERS * · default branch develop · main not strict · MONGODB_URI pattern · Atlas roles · .swarm tracked.
 
 ## Next 3 actions
-1. TRVL-136 release prep: freeze 2026-11-18; announce to team; bug-bash plan (each member tests a neighbour's module in Swagger).
+1. Booking engine, test-first: FLT-22 seat holds + HTL-18 room holds (atomic, 10 min), then FLT-23/HTL-17 confirm via PAYABLE_BOOKING, GEN-11 expiry job, TRVL-144 concurrency e2e.
 2. Review PR#20 against the plan's data model (hotels/rooms/room_nights unique {roomId,date}, reviews unique reservationId).
-3. Before release: confirm teammates' modules replace stubs via useExisting on PAYABLE_BOOKING / POLICIES_PROVIDER / NOTIFICATIONS_SERVICE;
-   then develop -> main PR and tag v1.0.0-m1 on 2026-11-20 (Ahmed).
+3. TRVL-136 release prep: freeze 2026-11-18, bug bash, develop -> main, tag v1.0.0-m1 on 2026-11-20 (Ahmed).
 
 ## Open questions for Ahmed
 1. Accept that PR authors can press Merge after approval (personal repo) or move the repo to a GitHub org?
