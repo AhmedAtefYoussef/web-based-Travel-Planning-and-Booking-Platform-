@@ -64,11 +64,19 @@ export class PaymentsService implements PaymentsServiceContract {
       throw new ConflictException('Policies must be accepted before payment');
     }
 
+    // One open payment record per booking: PENDING, or FAILED after a declined
+    // attempt (retry flips the same record back to PENDING, so never both).
     const existing = await this.model.findOne({
       bookingType: type,
       bookingId,
-      status: PaymentStatus.PENDING,
+      status: { $in: [PaymentStatus.PENDING, PaymentStatus.FAILED] },
     });
+    // PAY-01: paying again after a failure reuses the record with a new intent
+    // and a fresh idempotency key. A second record would reuse the first key,
+    // get the failed intent back from Stripe and collide on stripeId.
+    if (existing?.status === PaymentStatus.FAILED) {
+      return this.retry(userId, String(existing.id));
+    }
     if (existing) {
       const pi = await this.stripe.paymentIntents.retrieve(existing.stripeId);
       if (this.intentMatchesTotal(existing, pi, view.totalMinor)) {
@@ -214,9 +222,14 @@ export class PaymentsService implements PaymentsServiceContract {
         return this.onSucceeded(event.data.object);
       case 'payment_intent.payment_failed':
         return this.onFailed(event.data.object);
+      // PAY-03: Stripe recommends refund.created; refund.failed reports an
+      // asynchronous failure; charge.refund.updated is the deprecated alias.
+      case 'refund.created':
       case 'refund.updated':
+      case 'refund.failed':
       case 'charge.refund.updated':
-        return this.refunds.applyStripeRefund(event.data.object);
+        await this.refunds.applyStripeRefund(event.data.object);
+        return;
       default:
         return;
     }

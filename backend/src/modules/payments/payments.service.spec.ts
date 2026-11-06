@@ -379,6 +379,68 @@ describe('PaymentsService.handleWebhook', () => {
   });
 });
 
+describe('PAY-03: refund lifecycle webhooks', () => {
+  const ev = (type: string, object: any) => ({ type, data: { object } });
+  it.each(['refund.created', 'refund.updated', 'refund.failed'])(
+    'dispatches %s to the refunds service',
+    async (type) => {
+      const { svc, stripe, refunds } = setup();
+      stripe.webhooks.constructEvent.mockReturnValue(
+        ev(type, { id: 're_1', status: 'failed' }),
+      );
+      await svc.handleWebhook(Buffer.from('x'), 's');
+      expect(refunds.applyStripeRefund).toHaveBeenCalledWith({
+        id: 're_1',
+        status: 'failed',
+      });
+    },
+  );
+});
+
+describe('PAY-01: paying again after a failed attempt', () => {
+  it('POST /payments after a failure reuses the failed payment with a new PaymentIntent instead of failing', async () => {
+    const { svc, model, stripe } = setup();
+    const failed = {
+      id: 'pay1',
+      _id: 'pay1',
+      userId: 'u1',
+      bookingType: BookingType.FLIGHT,
+      bookingId: 'b1',
+      stripeId: 'pi_old',
+      amountMinor: 12345,
+      currency: 'USD',
+      status: PaymentStatus.FAILED,
+    };
+    model.findOne.mockResolvedValue(failed);
+    model.findById.mockResolvedValue(failed);
+    stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_old',
+      status: 'requires_payment_method',
+    });
+    stripe.paymentIntents.create.mockResolvedValue({
+      id: 'pi_new',
+      client_secret: 'cs_new',
+    });
+    model.findOneAndUpdate.mockResolvedValue({
+      ...failed,
+      stripeId: 'pi_new',
+      status: PaymentStatus.PENDING,
+    });
+    const r = await svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(model.create).not.toHaveBeenCalled();
+    expect(stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_old');
+    // A fresh idempotency key: reusing the first one would make Stripe return the failed intent again.
+    const [, opts] = stripe.paymentIntents.create.mock.calls[0] as any[];
+    expect(opts.idempotencyKey).not.toBe('pi-FLIGHT-b1-0');
+    expect(r).toEqual({
+      paymentId: 'pay1',
+      clientSecret: 'cs_new',
+      amountMinor: 12345,
+      currency: 'USD',
+    });
+  });
+});
+
 describe('PaymentsService.cancelForExpiredHold', () => {
   it('cancels the open PI', async () => {
     const { svc, stripe, model } = setup();
