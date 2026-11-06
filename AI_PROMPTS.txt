@@ -172,6 +172,19 @@ docs/team/claude-code-onboarding.md were shared with the team.
 Date: 2026-11-06
 Student: Ahmed Atef Youssef
 Tool: Claude Code
+Related Requirement: PAY-03, PAY-01, PAY-04
+Prompt:
+Fix card fix-PAY-03-1 from the Sprint 0 verification: make payments and
+refunds unique at the database level (one PENDING payment per booking, one
+active refund per PaymentIntent), reject non-integer amounts, keep the refund
+claim on ambiguous Stripe errors and let the refund webhook link it, tests first.
+How the output was used:
+Reviewed the diff and reran build, lint, unit and e2e myself, alone and merged
+with the other Wave A fixes; opened as a PR into develop.
+================================================
+Date: 2026-11-06
+Student: Ahmed Atef Youssef
+Tool: Claude Code
 Related Requirement: GEN-07
 Prompt:
 Fix card fix-GEN-07-1 from the Sprint 0 verification: block Model.bulkWrite
