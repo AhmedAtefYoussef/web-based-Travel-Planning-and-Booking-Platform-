@@ -198,6 +198,19 @@ OpenAPI file and reran all gates; opened as a PR into develop.
 Date: 2026-11-06
 Student: Ahmed Atef Youssef
 Tool: Claude Code
+Related Requirement: GEN-13, PAY-01, TRVL-130
+Prompt:
+Fix card fix-TRVL-130-1 from the Sprint 0 verification: make the env schema
+fail closed (NODE_ENV required, live Stripe keys refused unless
+STRIPE_ALLOW_LIVE_KEYS=true, production requires COOKIE_SECURE=true), tests first.
+How the output was used:
+Reviewed the diff, added the new key to the example env file, set
+NODE_ENV=development there so a copied env file still boots, and reran all
+gates; opened as a PR into develop.
+================================================
+Date: 2026-11-06
+Student: Ahmed Atef Youssef
+Tool: Claude Code
 Related Requirement: GEN-07
 Prompt:
 Fix card fix-GEN-07-1 from the Sprint 0 verification: block Model.bulkWrite
