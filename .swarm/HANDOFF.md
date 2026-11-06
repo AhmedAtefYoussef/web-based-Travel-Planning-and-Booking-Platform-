@@ -1,41 +1,59 @@
-# HANDOFF — 2026-11-05 (Leader session 11-02 → 11-05 closed)
-Digest with sources: .swarm/archive/handoff-2026-11/session-digest.md. Status: .swarm/state.md.
+# HANDOFF — 2026-11-06 (Leader session: Wave A review, merge conflicts, Leader V&V)
+Status: .swarm/state.md. Reports: docs/verification/sprint0-verification-report.md (11-05),
+docs/verification/leader-setup-and-agentic-review-2026-11-06.md (11-06, uncommitted).
 
-## Done
-- Payments/foundation scope verified: PAY-01..04, GEN-02/05/07/08/13, ITN-18 rates — 10/10 PASS (PRs #1-#12).
-- Jira (2026-11-05) also assigns Ahmed the booking engine: FLT-12, FLT-22, FLT-23, HTL-16, HTL-17, HTL-18, GEN-11, TRVL-144 — all To Do.
-- Releases develop -> main: #13 (11-03), #15 (11-04). Jira synced: 18 Done, 2 In Progress (TRVL-1, TRVL-136).
-- Atlas cluster + member users + handouts (TRVL-128 Done). Build fix #14. MONGODB_URI multi-host fix #19.
-- PR gate #17: CI build-lint-test + pr-requirements required; CODEOWNERS * -> Ahmed; auto-merge off; default branch develop.
-- v2 operating model (this PR): CLAUDE.md files, .claude/ hooks/skills/commands/agents, .swarm refresh, archive.
+## Done this session
+- Reviewed Wave A PRs #22 (PAY-03), #23 (PAY-01), #24 (TRVL-130), #25 (GEN-07) against the xlsx
+  (rechecked against the workbook: texts identical) and the fix cards; all four merged together pass
+  build/lint/unit 237/e2e 89, no OpenAPI drift. Verdict: keep all, none closed. Ahmed merged #22–#25 (develop e7b4743).
+- #24: pushed a895203 (.env.example NODE_ENV=development; comment fixed).
+- #23: resolved AI_PROMPTS.txt conflict by merging develop into the branch (198ce11), both entries kept.
+  #24/#25 had already been updated from develop under Ahmed's account; contents verified correct.
+- Leader V&V: repo hygiene, project-description setup duties, before/after context engineering.
+  Findings F1–F7 + agentic metrics in the 11-06 report.
+- Local only: merged origin/develop into chore/VERIFY-sprint0 (d465dcd; AI_PROMPTS conflict, both kept).
+
+## Incident (fixed)
+I wrote `AI_PROMPTS.txt merge=union` into .git/info/attributes (shared by all worktrees) during a scratch
+integration merge; removed before the #23 resolution. #24's first develop merge (17:30) ran while it was
+active; repaired by e283a76. Lesson recorded in state.md LESSONS.
 
 ## In flight
-- Branch chore/AGENT-context-engineering -> PR into develop (needs Ahmed's approval/merge).
-- PR#20 feature/TRVL-140-hotel-schemas (Sandra) — waiting for Ahmed's review.
+- Branch chore/VERIFY-sprint0 (local, NOT pushed), 3 ahead of develop: sprint0 report, fix cards, .swarm updates,
+  this handoff. Uncommitted: docs/verification/leader-setup-and-agentic-review-2026-11-06.md, .swarm/* edits, bulletin.md.
+- PR #20 (Sandra, TRVL-140 hotel schemas): open since 11-04, 0 reviews.
+- Proposed session card "Stop AI_PROMPTS.txt merge conflicts" (task_91c4dfd9): per-PR fragment files + build script.
+- No failing tests at develop e7b4743 (unit 237/237, e2e 89/89, serial runs).
 
-## Decisions not in an ADR (home: .swarm/context.md ## decisions D1–D10)
-Dev auth opt-in · Stripe late/superseded success refunded · build excludes scripts · gate reads rules from base ·
-no auto-merge, CODEOWNERS * · default branch develop · main not strict · MONGODB_URI pattern · Atlas roles · .swarm tracked.
+## Decisions (where recorded)
+- Keep PRs #22–#25 (all requirements met): this file + 11-06 report §B/§C.
+- Resolve PR conflicts by merging develop into the PR branch, never rebase + force-push: context.md D12.
+- AI_PROMPTS conflicts: keep both entries in merge/date order; never merge=union: context.md D13.
+- Local Jest on Windows: run --runInBand (MongoMemoryServer 10 s start timeout): context.md D14.
+- Wave A behaviour (amount cross-check, refund claim, env fail-closed, audit bulkWrite): context.md D15–D17.
 
 ## Next 3 actions
-1. Booking engine, test-first: FLT-22 seat holds + HTL-18 room holds (atomic, 10 min), then FLT-23/HTL-17 confirm via PAYABLE_BOOKING, GEN-11 expiry job, TRVL-144 concurrency e2e.
-2. Review PR#20 against the plan's data model (hotels/rooms/room_nights unique {roomId,date}, reviews unique reservationId).
-3. TRVL-136 release prep: freeze 2026-11-18, bug bash, develop -> main, tag v1.0.0-m1 on 2026-11-20 (Ahmed).
+1. Push chore/VERIFY-sprint0 and open a docs PR into develop (PRs #22–#25 cite the sprint0 report, missing on develop).
+2. Review/merge PR #20; then booking engine test-first: FLT-22/HTL-18 holds, FLT-23/HTL-17, GEN-11, TRVL-144.
+3. Dispatch Wave B (fix-GEN-08-1, fix-ITN-18-1, fix-PAY-02-1, fix-TRVL-130-2) and a deps PR for npm audit (multer, js-yaml).
 
 ## Open questions for Ahmed
-1. Accept that PR authors can press Merge after approval (personal repo) or move the repo to a GitHub org?
-2. Tighten Atlas member roles to readWrite@travel_platform and restrict network access?
-3. Semantic PR review: Claude Code Action (needs API key secret) vs scheduled agent vs on-demand /code-review?
-4. Teammates behind WARP: confirm everyone can connect (TRVL-128 closed without confirmations).
+1. Owner for fix-DLV-13-1 (reference-dataset seed)?
+2. Commit ce0a259 had an inline mongodb+srv credential: real Atlas password? Rotate if so.
+3. Start task_91c4dfd9 (AI_PROMPTS fragments) before members open PRs?
+4. Teammate review on Leader PRs (all 24 merged with REVIEW_REQUIRED via admin), enforce_admins, auto-delete branches?
+5. Wave A Jira: TRVL-67/69/102/109/111 already Done — add PR links only? (no Jira write done this session)
+6. Atlas: tighten member roles / 0.0.0.0/0 (not inspected; Atlas tools not authorised).
 
 ## Do not do
 - Do not read or print backend/.env, .env*, team-db-access/** or keys. Do not commit them.
 - Do not push to develop/main, force-push, or merge with --admin. Ahmed merges.
+- Do not write .git/info or git config from agents; scratch merges resolve conflicts by hand.
 - Do not write Jira from subagents; main session only, after Ahmed says yes in chat.
 - Do not merge main -> develop back-merge PRs; close them.
-- Do not weaken or delete a test to go green; do not mark traceability PASS without running the named test.
+- Do not weaken or delete a test to go green; traceability PASS only after running the named test.
 - Do not read plan.md / reqs.json / openapi.json whole; use the CLAUDE.md line index or Grep.
 
 ## Worktree cleanup
-All 9 agent worktrees removed 2026-11-05 (PR merged, HEAD = PR head, clean); git worktree prune run. Local branches kept (not deleted).
-Gate baseline 2026-11-05: build OK · lint 0 errors · unit 172/172 · e2e 87/87 · repo-consistency OK.
+Scratch worktrees (merged, dev) removed. Still present: 4 Wave A worktrees under .claude/worktrees/ (branches merged)
+and a detached scratchpad/integ from another session; clean with clean_up_worktrees after Ahmed confirms.

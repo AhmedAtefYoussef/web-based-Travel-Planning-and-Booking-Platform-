@@ -17,3 +17,8 @@ PR#15 Ahmed: release develop -> main (2026-11-04)
 PR#17 Leader: .github/{workflows/ci,pr-open,pr-automation.yml,scripts/pr-requirements.mjs,repo-consistency.mjs,CODEOWNERS}, README merging section
 PR#19 Leader: backend/src/config/env.schema(.spec).ts MONGODB_URI pattern (multi-host)
 #18 closed (main -> develop back-merge, no files)
+PR#21 Leader: v2 operating model (CLAUDE.md files, .claude/ hooks/skills/agents, .swarm refresh) merged -> develop 6efa26b
+PR#22 Wave A fix-PAY-03-1: payments/{refunds.service,schemas}: DB-unique stripeId, one PENDING payment per booking, one active refund per PI (claim before Stripe), integer minorUnits (merged 5750f22)
+PR#23 Wave A fix-PAY-01-1: payments.service: confirm only on matching amount_received/currency, recreate PI on total change, reject webhook without secret, 404 for others' payments, no silent Stripe key (merged fb80f8a)
+PR#24 Wave A fix-TRVL-130-1: config/env.schema: NODE_ENV required, live Stripe keys refused unless STRIPE_ALLOW_LIVE_KEYS, prod needs COOKIE_SECURE; .env.example NODE_ENV=development (merged 3a9e3d2)
+PR#25 Wave A fix-GEN-07-1: audit-log.schema: bulkWrite allows insertOne only (merged e7b4743)
