@@ -74,10 +74,12 @@ function checkFile(raw, isWrite, root) {
 
   const rel = path.relative(root, p);
   const inside = rel && !rel.startsWith('..') && !path.isAbsolute(rel);
-  const allowedOutside = [tmpdir(), path.join(homedir(), '.claude')].map(canonical);
+  // Outside the project only the OS temp dir and Claude's per-project memory/transcripts are writable;
+  // never ~/.claude/settings*.json or ~/.claude/hooks/, so the guard cannot be switched off from outside.
+  const allowedOutside = [tmpdir(), path.join(homedir(), '.claude', 'projects')].map(canonical);
   if (!inside && rel !== '') {
     if (!allowedOutside.some((d) => p === d || p.startsWith(d + path.sep))) {
-      block('writes outside the project are not allowed (except the OS temp dir and ~/.claude).');
+      block('writes outside the project are not allowed (except the OS temp dir and ~/.claude/projects).');
     }
     return;
   }
@@ -111,11 +113,31 @@ function checkCommand(cmd) {
     }
   }
 
-  const tokens = cmd.split(/[\s;&|()]+/).filter(Boolean);
-  const gitAt = tokens.flatMap((t, i) => (/^git(\.exe)?$/i.test(t) ? [i] : []));
+  // Protected files must not be changed through the shell either (sibling of the Edit/Write checks).
+  const PROTECTED = /\.claude[\\/]+(settings[^\s\\/]*\.json|hooks)|docs[\\/]+requirements[\\/]+(reqs\.json|project-description\.md|[^\s\\/]+\.xlsx)|(^|[\s\\/])\.git[\\/]/i;
+  const WRITES = /(^|[^<>&|0-9])>{1,2}(?!&)|\b(tee|rm|del|erase|mv|move|cp|copy|ren|rename|sed\s+-[a-z]*i|perl\s+-[a-z]*i|truncate|chmod|attrib|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item|Rename-Item|python3?|node|npx|ruby|powershell|pwsh)\b/i;
+  const syntaxCheckOnly = /^[ \t]*node[ \t]+--check[ \t]+[\w./\\-]+[ \t]*$/i.test(cmd);
+  if (PROTECTED.test(unquoted) && WRITES.test(unquoted) && !syntaxCheckOnly) {
+    block('the command may change the guard, project settings, .git internals or the official requirement files; a person changes those.');
+  }
+
+  // Tokens of the unquoted form, so quoting cannot hide a flag or ref ("develop", 'm'ain, --"force").
+  const tokens = unquoted.split(/[\s;&|()]+/).filter(Boolean);
+  const GIT_GLOBAL_WITH_VALUE = /^(-C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)$/;
+  const gitAt = tokens.flatMap((t, i) => (/^git(\.exe)?$/i.test(path.basename(t.replace(/\\/g, '/'))) ? [i] : []));
   for (const i of gitAt) {
-    const sub = tokens.slice(i + 1).find((t) => !t.startsWith('-'));
-    const args = tokens.slice(i + 1);
+    // Skip git's global options (and their values) to find the real subcommand.
+    let j = i + 1;
+    while (j < tokens.length && tokens[j].startsWith('-')) {
+      const opt = tokens[j];
+      const value = GIT_GLOBAL_WITH_VALUE.test(opt) ? tokens[j + 1] : opt.includes('=') ? opt.split('=').slice(1).join('=') : '';
+      if ((opt === '-c' || /^--config-env/.test(opt)) && /^(core\.hookspath|merge\.)/i.test(value ?? '')) {
+        block('do not override git hook paths or merge drivers.');
+      }
+      j += GIT_GLOBAL_WITH_VALUE.test(opt) ? 2 : 1;
+    }
+    const sub = tokens[j];
+    const args = tokens.slice(j + 1);
     if (sub === 'push') {
       for (const a of args) {
         if (/^--force/i.test(a) || /^-[a-z]*f[a-z]*$/i.test(a) || /^\+/.test(a)) block('force pushes are not allowed.');

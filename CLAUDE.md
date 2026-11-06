@@ -35,7 +35,8 @@ docs/         requirements/ · architecture/ · api/openapi.json (generated) · 
 - **Endpoint change** → `cd backend && npm run openapi:export`, commit `docs/api/openapi.json` (CI fails on drift).
 - Never push to `develop`/`main`, never force-push, never `--no-verify`. Jira writes only after Ahmed approves in chat.
 - `.claude/hooks/guard.mjs` enforces the secret, push and source rules. Agents cannot edit `.claude/settings*.json`,
-  `.claude/hooks/`, `.git/` or files outside the project (except the OS temp dir); a person changes those.
+  `.claude/hooks/`, `.git/`, the official requirement files, or files outside the project (except the OS temp dir and
+  `~/.claude/projects/`), whether through Edit/Write or the shell; a person changes those.
 
 ## Workflow for one requirement (one ID = one branch = one PR)
 1. `req <ID>`: read the verbatim requirement, Jira key, owner, dependencies. Confirm you own it (`docs/team/ownership.md`).
