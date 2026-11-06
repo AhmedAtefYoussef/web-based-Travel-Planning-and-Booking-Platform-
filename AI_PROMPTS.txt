@@ -178,6 +178,7 @@ Fix card fix-TRVL-130-1 from the Sprint 0 verification: make the env schema
 fail closed (NODE_ENV required, live Stripe keys refused unless
 STRIPE_ALLOW_LIVE_KEYS=true, production requires COOKIE_SECURE=true), tests first.
 How the output was used:
-Reviewed the diff, added the new key to .env.example and reran all gates;
+Reviewed the diff, added the new key to .env.example, set NODE_ENV=development
+in .env.example so a copied env file still boots, and reran all gates;
 opened as a PR into develop.
 ================================================
