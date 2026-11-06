@@ -1,5 +1,5 @@
-import { model, Types } from 'mongoose';
-import { AuditLogSchema } from './audit-log.schema';
+import { AnyBulkWriteOperation, model, Types } from 'mongoose';
+import { AuditLog as AuditLogEntry, AuditLogSchema } from './audit-log.schema';
 
 /**
  * GEN-07: the schema hooks reject every update/delete path. The hooks throw
@@ -31,7 +31,7 @@ describe('AuditLogSchema immutability hooks', () => {
     await expect(run()).rejects.toThrow('Audit log entries are immutable');
   });
 
-  const bulk: [string, any][] = [
+  const bulk: [string, AnyBulkWriteOperation<AuditLogEntry>][] = [
     ['updateOne', { updateOne: { filter: {}, update: { $set: patch } } }],
     ['updateMany', { updateMany: { filter: {}, update: { $set: patch } } }],
     ['replaceOne', { replaceOne: { filter: {}, replacement: patch } }],
