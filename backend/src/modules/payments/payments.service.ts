@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -72,20 +71,51 @@ export class PaymentsService implements PaymentsServiceContract {
     });
     if (existing) {
       const pi = await this.stripe.paymentIntents.retrieve(existing.stripeId);
-      return this.result(existing, pi.client_secret);
+      if (this.intentMatchesTotal(existing, pi, view.totalMinor)) {
+        return this.result(existing, pi.client_secret);
+      }
+      return this.recreateIntent(existing, pi, view.totalMinor);
     }
 
     const pi = await this.newIntent(type, bookingId, view.totalMinor, 0);
-    const doc = await this.model.create({
+    let doc: PaymentDocument;
+    try {
+      doc = await this.model.create({
+        bookingType: type,
+        bookingId,
+        userId,
+        stripeId: pi.id,
+        amountMinor: view.totalMinor,
+        currency: this.currency,
+        status: PaymentStatus.PENDING,
+      });
+    } catch (err) {
+      if ((err as { code?: number }).code !== 11000) throw err;
+      return this.afterDuplicateInsert(type, bookingId, pi.id, err);
+    }
+    return this.result(doc, pi.client_secret);
+  }
+
+  /**
+   * A concurrent request inserted the PENDING payment first (unique index):
+   * return that one, and cancel our own intent unless Stripe's idempotency
+   * key handed both requests the same PaymentIntent.
+   */
+  private async afterDuplicateInsert(
+    type: BookingType,
+    bookingId: string,
+    ourIntentId: string,
+    err: unknown,
+  ): Promise<CreatePaymentResult> {
+    const winner = await this.model.findOne({
       bookingType: type,
       bookingId,
-      userId,
-      stripeId: pi.id,
-      amountMinor: view.totalMinor,
-      currency: this.currency,
       status: PaymentStatus.PENDING,
     });
-    return this.result(doc, pi.client_secret);
+    if (!winner) throw err;
+    if (winner.stripeId !== ourIntentId) await this.cancelIntent(ourIntentId);
+    const pi = await this.stripe.paymentIntents.retrieve(winner.stripeId);
+    return this.result(winner, pi.client_secret);
   }
 
   async retry(userId: string, paymentId: string): Promise<CreatePaymentResult> {
@@ -134,8 +164,9 @@ export class PaymentsService implements PaymentsServiceContract {
   ): Promise<PaymentView> {
     const p = await this.model.findById(paymentId);
     if (!p) throw new NotFoundException('Payment not found');
+    // Same answer as a missing id: never reveal other users' payments.
     if (p.userId !== userId && !isAdmin) {
-      throw new ForbiddenException('Not your payment');
+      throw new NotFoundException('Payment not found');
     }
     return {
       id: String(p.id),
@@ -163,13 +194,17 @@ export class PaymentsService implements PaymentsServiceContract {
     if (!rawBody || !signature) {
       throw new BadRequestException('Missing webhook signature or body');
     }
+    // Fail closed: without a secret no signature can be trusted.
+    const secret = this.config.get<string>('STRIPE_WEBHOOK_SECRET');
+    if (!secret) {
+      this.logger.error(
+        'STRIPE_WEBHOOK_SECRET is not configured; rejecting webhook',
+      );
+      throw new BadRequestException('Invalid webhook signature');
+    }
     let event: Stripe.Event;
     try {
-      event = this.stripe.webhooks.constructEvent(
-        rawBody,
-        signature,
-        this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '',
-      );
+      event = this.stripe.webhooks.constructEvent(rawBody, signature, secret);
     } catch {
       throw new BadRequestException('Invalid webhook signature');
     }
@@ -197,9 +232,14 @@ export class PaymentsService implements PaymentsServiceContract {
       status: { $in: [PaymentStatus.PENDING, PaymentStatus.FAILED] },
     });
     if (!open) return;
-    await this.stripe.paymentIntents.cancel(open.stripeId);
+    // Tolerates an already canceled/succeeded PI; a late success is then
+    // refunded by the webhook (booking no longer payable).
+    await this.cancelIntent(open.stripeId);
     await this.model.findOneAndUpdate(
-      { _id: open.id },
+      {
+        _id: open.id,
+        status: { $in: [PaymentStatus.PENDING, PaymentStatus.FAILED] },
+      },
       { status: PaymentStatus.CANCELLED },
       { new: true },
     );
@@ -251,7 +291,19 @@ export class PaymentsService implements PaymentsServiceContract {
     // refunded through RefundsService.refundFor): nothing to do.
     if (view.paymentId === paymentId) return;
 
-    if (this.isPayable(view)) {
+    // PAY-01/PAY-04: confirm only when Stripe captured exactly the stored
+    // amount, in the platform currency, and it still equals the booking
+    // total. Anything else is refunded below and logged, never confirmed.
+    const chargeOk = this.chargeMatches(payment, fresh, view.totalMinor);
+    if (!chargeOk) {
+      this.logger.error(
+        `PaymentIntent ${intent.id} for payment ${paymentId} captured ` +
+          `${String(fresh.amount_received)} ${String(fresh.currency)}, expected ` +
+          `${payment.amountMinor} ${payment.currency} (booking total ${view.totalMinor} ${this.currency}); refunding`,
+      );
+    }
+
+    if (chargeOk && this.isPayable(view)) {
       // markConfirmed is idempotent per paymentId; a redelivery after a
       // crash between the transition and this call completes the work.
       if (!won) {
@@ -268,11 +320,14 @@ export class PaymentsService implements PaymentsServiceContract {
     }
 
     // Booking is no longer payable (expired, cancelled, or confirmed by
-    // another payment): give the captured money back. Runs on every
-    // delivery until it succeeds; refundPayment dedupes per PI.
-    this.logger.warn(
-      `Late payment ${paymentId} for non-payable booking ${payment.bookingId}; refunding`,
-    );
+    // another payment) or the charge does not match: give the captured
+    // money back. Runs on every delivery until it succeeds; refundPayment
+    // dedupes per PI.
+    if (chargeOk) {
+      this.logger.warn(
+        `Late payment ${paymentId} for non-payable booking ${payment.bookingId}; refunding`,
+      );
+    }
     await this.refunds.refundPayment(won ?? payment, fresh, 'PROVIDER');
   }
 
@@ -302,6 +357,76 @@ export class PaymentsService implements PaymentsServiceContract {
         throw err;
       }
     }
+  }
+
+  /** Captured exactly the stored amount, in the platform currency, and it still equals the booking total. */
+  private chargeMatches(
+    payment: { amountMinor: number; currency: string },
+    fresh: Pick<Stripe.PaymentIntent, 'amount_received' | 'currency'>,
+    totalMinor: number,
+  ): boolean {
+    return (
+      isValidMinor(payment.amountMinor) &&
+      fresh.amount_received === payment.amountMinor &&
+      payment.amountMinor === totalMinor &&
+      typeof fresh.currency === 'string' &&
+      fresh.currency.toUpperCase() === payment.currency &&
+      payment.currency === this.currency
+    );
+  }
+
+  /** A reusable PENDING intent still asks for the current total in the platform currency. */
+  private intentMatchesTotal(
+    payment: { amountMinor: number; currency: string },
+    pi: Pick<Stripe.PaymentIntent, 'amount' | 'currency'>,
+    totalMinor: number,
+  ): boolean {
+    return (
+      payment.amountMinor === totalMinor &&
+      payment.currency === this.currency &&
+      pi.amount === totalMinor &&
+      typeof pi.currency === 'string' &&
+      pi.currency.toUpperCase() === this.currency
+    );
+  }
+
+  /** The total changed since the PENDING intent was opened: cancel it and open a new one. */
+  private async recreateIntent(
+    payment: PaymentDocument,
+    old: Stripe.PaymentIntent,
+    totalMinor: number,
+  ): Promise<CreatePaymentResult> {
+    if (old.status === 'succeeded' || old.status === 'processing') {
+      throw new ConflictException(
+        'The previous payment attempt is still being processed or succeeded',
+      );
+    }
+    await this.cancelIntent(payment.stripeId);
+    const pi = await this.newIntent(
+      payment.bookingType,
+      payment.bookingId,
+      totalMinor,
+      Date.now(),
+    );
+    const updated = await this.model.findOneAndUpdate(
+      {
+        _id: payment.id,
+        stripeId: payment.stripeId,
+        status: PaymentStatus.PENDING,
+      },
+      {
+        stripeId: pi.id,
+        amountMinor: totalMinor,
+        currency: this.currency,
+        $addToSet: { stripeIdHistory: payment.stripeId },
+      },
+      { new: true },
+    );
+    if (!updated) {
+      await this.cancelIntent(pi.id);
+      throw new ConflictException('Payment changed concurrently; try again');
+    }
+    return this.result(updated, pi.client_secret);
   }
 
   private newIntent(

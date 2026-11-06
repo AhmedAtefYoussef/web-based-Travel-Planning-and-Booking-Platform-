@@ -511,9 +511,6 @@
           "401": {
             "description": "Missing or invalid credentials"
           },
-          "403": {
-            "description": "Authenticated but not allowed"
-          },
           "404": {
             "description": "Resource not found"
           }

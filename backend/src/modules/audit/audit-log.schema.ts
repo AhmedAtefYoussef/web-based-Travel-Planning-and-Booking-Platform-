@@ -46,6 +46,15 @@ for (const op of BLOCKED) {
     throw new Error('Audit log entries are immutable');
   });
 }
+// Model.bulkWrite bypasses the query hooks above: only insertOne is allowed.
+// Fails closed: a missing or malformed ops list is rejected too.
+AuditLogSchema.pre('bulkWrite', function (next, ops) {
+  const ok =
+    Array.isArray(ops) &&
+    ops.every((op) => !!op && typeof op === 'object' && 'insertOne' in op);
+  if (!ok) throw new Error('Audit log entries are immutable');
+  next();
+});
 AuditLogSchema.pre('save', function () {
   if (!this.isNew) throw new Error('Audit log entries are immutable');
 });

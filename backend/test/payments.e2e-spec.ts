@@ -307,7 +307,9 @@ describe('Payments, policies and refunds (e2e)', () => {
     it('confirms the booking exactly once on payment_intent.succeeded', async () => {
       const confirm = jest.spyOn(bookings, 'markConfirmed');
       const { b, paymentId, piId } = await paidSetup();
-      t.stripe.intents.get(piId)!.status = 'succeeded';
+      const intent = t.stripe.intents.get(piId)!;
+      intent.status = 'succeeded';
+      intent.amount_received = intent.amount; // Stripe reports captured funds
 
       const evt = signedEvent('payment_intent.succeeded', succeeded(piId));
       const first = await sendWebhook(evt).expect(200);
