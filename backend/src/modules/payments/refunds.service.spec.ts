@@ -884,3 +884,113 @@ describe('PAY-04 F13: amounts are integer minor units', () => {
     ).toBeUndefined();
   });
 });
+
+describe('PAY-03: the refund status follows the status Stripe returns at creation', () => {
+  let mongo: MongoMemoryReplSet;
+  let conn: Connection;
+  let payments: Model<PaymentDocument>;
+  let refunds: Model<RefundDocument>;
+
+  beforeAll(async () => {
+    mongo = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+    conn = await mongoose
+      .createConnection(mongo.getUri('refund_status_spec'), {
+        autoIndex: false,
+      })
+      .asPromise();
+    payments = conn.model<PaymentDocument>(Payment.name, PaymentSchema);
+    refunds = conn.model<RefundDocument>(Refund.name, RefundSchema);
+    await payments.syncIndexes();
+    await refunds.syncIndexes();
+  }, 120_000);
+  afterAll(async () => {
+    await conn?.close();
+    await mongo?.stop();
+  });
+  beforeEach(async () => {
+    await payments.deleteMany({});
+    await refunds.deleteMany({});
+  });
+
+  async function serviceReturning(stripeStatus: string) {
+    const pay = await payments.create({
+      bookingType: BookingType.FLIGHT,
+      bookingId: 'b1',
+      userId: 'u1',
+      stripeId: 'pi_1',
+      amountMinor: 10001,
+      currency: 'USD',
+      status: 'SUCCEEDED',
+    });
+    const view = {
+      userId: 'u1',
+      totalMinor: 10001,
+      status: BookingStatus.CONFIRMED,
+      holdExpiresAt: null,
+      policiesAcceptedAt: new Date(),
+      providerId: 'p',
+      serviceStartsAt: new Date(Date.now() + 30 * 86_400_000),
+      timeZone: 'UTC',
+      policySnapshot: { kind: 'AIRLINE', tiers } as any,
+      paymentId: String(pay._id),
+    };
+    const stripe = {
+      refunds: {
+        create: jest.fn(async (p: any) => ({
+          id: 're_1',
+          object: 'refund',
+          status: stripeStatus,
+          amount: p.amount,
+          payment_intent: p.payment_intent,
+          metadata: p.metadata,
+        })),
+      },
+      paymentIntents: {
+        retrieve: jest.fn(async (id: string) => ({
+          id,
+          amount_received: 10001,
+        })),
+      },
+    };
+    const notifications = { notify: jest.fn(async () => undefined) };
+    const svc = new RefundsService(
+      refunds,
+      payments,
+      stripe as any,
+      { getPayable: jest.fn(async () => view) } as any,
+      notifications,
+    );
+    const types = () =>
+      notifications.notify.mock.calls.map((c: any[]) => c[1].type);
+    return { svc, notifications, types };
+  }
+
+  it('a refund Stripe creates as succeeded is recorded REFUNDED and the user is told it completed', async () => {
+    const { svc, types } = await serviceReturning('succeeded');
+    const r = await svc.refundFor(BookingType.FLIGHT, 'b1', 'PROVIDER');
+    expect(r?.status).toBe('REFUNDED');
+    expect((await refunds.findOne({}))?.status).toBe('REFUNDED');
+    expect(types()).toEqual(['REFUND_ISSUED', 'REFUND_COMPLETED']);
+    // A later refund.updated with the same status changes nothing and notifies no one.
+    await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
+    expect(types()).toEqual(['REFUND_ISSUED', 'REFUND_COMPLETED']);
+  });
+
+  it('a refund Stripe creates as failed is recorded FAILED and the user is notified', async () => {
+    const { svc, types } = await serviceReturning('failed');
+    const r = await svc.refundFor(BookingType.FLIGHT, 'b1', 'PROVIDER');
+    expect(r?.status).toBe('FAILED');
+    expect((await refunds.findOne({}))?.status).toBe('FAILED');
+    expect(types()).toEqual(['REFUND_ISSUED', 'REFUND_FAILED']);
+  });
+
+  it('a refund Stripe creates as pending stays PENDING until a webhook reports the outcome', async () => {
+    const { svc, types } = await serviceReturning('pending');
+    const r = await svc.refundFor(BookingType.FLIGHT, 'b1', 'PROVIDER');
+    expect(r?.status).toBe('PENDING');
+    expect(types()).toEqual(['REFUND_ISSUED']);
+    await svc.applyStripeRefund({ id: 're_1', status: 'succeeded' } as any);
+    expect((await refunds.findOne({}))?.status).toBe('REFUNDED');
+    expect(types()).toEqual(['REFUND_ISSUED', 'REFUND_COMPLETED']);
+  });
+});

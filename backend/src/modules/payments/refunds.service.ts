@@ -95,15 +95,14 @@ export class RefundsService implements RefundsServiceContract {
     }
     if (!(amountMinor > 0)) return null;
 
-    const { doc, created } = await this.issue(
+    const issued = await this.issue(
       payment,
       payment.stripeId,
       amountMinor,
       reason,
       view.userId,
     );
-    if (created) await this.notifyIssued(doc, view.userId);
-    return toRecord(doc);
+    return toRecord(await this.afterIssue(issued, view.userId));
   }
 
   /**
@@ -120,15 +119,29 @@ export class RefundsService implements RefundsServiceContract {
     if (existing) return toRecord(existing);
     const amountMinor = intent.amount_received;
     if (!(amountMinor > 0)) return null;
-    const { doc, created } = await this.issue(
+    const issued = await this.issue(
       payment,
       intent.id,
       amountMinor,
       reason,
       payment.userId,
     );
-    if (created) await this.notifyIssued(doc, payment.userId);
-    return toRecord(doc);
+    return toRecord(await this.afterIssue(issued, payment.userId));
+  }
+
+  /**
+   * A new refund notifies the user, then takes the status Stripe returned at
+   * creation: card refunds are usually `succeeded` at once and Stripe sends no
+   * refund.updated for them, so waiting for a webhook would leave them PENDING.
+   */
+  private async afterIssue(
+    issued: { doc: RefundDocument; created: boolean; stripe?: Stripe.Refund },
+    userId: string,
+  ): Promise<RefundDocument> {
+    if (!issued.created) return issued.doc;
+    await this.notifyIssued(issued.doc, userId);
+    if (!issued.stripe) return issued.doc;
+    return (await this.syncStatus(issued.stripe)) ?? issued.doc;
   }
 
   private async notifyIssued(doc: RefundDocument, userId: string) {
@@ -166,7 +179,11 @@ export class RefundsService implements RefundsServiceContract {
     amountMinor: MinorUnits,
     reason: RefundReason,
     userId: string,
-  ): Promise<{ doc: RefundDocument; created: boolean }> {
+  ): Promise<{
+    doc: RefundDocument;
+    created: boolean;
+    stripe?: Stripe.Refund;
+  }> {
     const failed = await this.refunds.countDocuments({
       paymentIntentId,
       status: RefundStatus.FAILED,
@@ -233,16 +250,27 @@ export class RefundsService implements RefundsServiceContract {
       { new: true },
     );
     if (!doc) throw new Error(`Refund ${sr.id} was not recorded`);
-    return { doc, created: true };
+    return { doc, created: true, stripe: sr };
   }
 
-  /** Webhook: refund.updated / charge.refund.updated. */
+  /** Webhook: refund.created / refund.updated / refund.failed / charge.refund.updated. */
   async applyStripeRefund(refund: Stripe.Refund): Promise<void> {
+    await this.syncStatus(refund);
+  }
+
+  /**
+   * Mirrors a Stripe refund status onto the local record (webhooks and the
+   * response of refunds.create). Only the call that changes the status
+   * notifies the user. Returns the record when this call changed it, else null.
+   */
+  private async syncStatus(
+    refund: Stripe.Refund,
+  ): Promise<RefundDocument | null> {
     let status: RefundStatus | null = null;
     if (refund.status === 'succeeded') status = RefundStatus.REFUNDED;
     else if (refund.status === 'failed' || refund.status === 'canceled')
       status = RefundStatus.FAILED;
-    if (!status) return;
+    if (!status) return null;
     // Only the first delivery that changes the status notifies the user.
     const doc =
       (await this.refunds.findOneAndUpdate(
@@ -250,7 +278,7 @@ export class RefundsService implements RefundsServiceContract {
         { status },
         { new: true },
       )) ?? (await this.linkClaim(refund, status));
-    if (!doc) return;
+    if (!doc) return null;
     const amount = `${minorToDecimalString(doc.amountMinor, doc.currency)} ${doc.currency}`;
     const link = `/refunds/${String(doc.id ?? doc._id)}`;
     if (status === RefundStatus.REFUNDED) {
@@ -268,6 +296,7 @@ export class RefundsService implements RefundsServiceContract {
         link,
       });
     }
+    return doc;
   }
 
   /**
