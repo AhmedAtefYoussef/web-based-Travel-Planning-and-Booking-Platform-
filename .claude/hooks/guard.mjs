@@ -114,30 +114,50 @@ function checkCommand(cmd) {
   }
 
   // Protected files must not be changed through the shell either (sibling of the Edit/Write checks).
-  const PROTECTED = /\.claude[\\/]+(settings[^\s\\/]*\.json|hooks)|docs[\\/]+requirements[\\/]+(reqs\.json|project-description\.md|[^\s\\/]+\.xlsx)|(^|[\s\\/])\.git[\\/]/i;
-  const WRITES = /(^|[^<>&|0-9])>{1,2}(?!&)|\b(tee|rm|del|erase|mv|move|cp|copy|ren|rename|sed\s+-[a-z]*i|perl\s+-[a-z]*i|truncate|chmod|attrib|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item|Rename-Item|python3?|node|npx|ruby|powershell|pwsh)\b/i;
+  // Backslashes become "/" (not deleted) so Windows paths and escapes match the same pattern.
+  const slashed = cmd.replace(/['"`^]/g, '').replace(/\\+/g, '/');
+  const PROTECTED = /\.claude\/+(settings[^\s/]*\.json|hooks)|\.claude\/+\*|docs\/+requirements\/+(reqs\.json|project-description\.md|[^\s/]+\.xlsx|\*)|(^|[\s/=])\.git(\/|\*|\s|$)/i;
+  const WRITES = /(^|[^<>&|0-9])>{1,2}(?!&)|\b(tee|rm|del|erase|mv|move|cp|copy|ren|rename|sed\s+-[a-z]*i|perl\s+-[a-z]*i|truncate|chmod|attrib|ln|install|rsync|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item|Rename-Item|python3?|node|npx|ruby|powershell|pwsh|checkout|restore|apply|reset|stash|clean|worktree)\b/i;
   const syntaxCheckOnly = /^[ \t]*node[ \t]+--check[ \t]+[\w./\\-]+[ \t]*$/i.test(cmd);
-  if (PROTECTED.test(unquoted) && WRITES.test(unquoted) && !syntaxCheckOnly) {
+  const touches = [cmd, slashed].some((c) => PROTECTED.test(c.replace(/\\+/g, '/')));
+  if (touches && WRITES.test(slashed) && !syntaxCheckOnly) {
     block('the command may change the guard, project settings, .git internals or the official requirement files; a person changes those.');
+  }
+  // Working from inside the protected folders would make relative paths invisible to the check above.
+  if (/(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i.test(slashed)) {
+    block('do not change directory into .claude, .git or docs/requirements; use paths from the project root.');
+  }
+  // Git config injected through the environment (GIT_CONFIG_*, GIT_CONFIG_PARAMETERS) can set hooksPath.
+  if (/\bGIT_CONFIG(_[A-Z_]+|_PARAMETERS)?\b|\bGIT_DIR\b|\bGIT_WORK_TREE\b/i.test(slashed)) {
+    block('do not set git configuration or repository location through environment variables.');
   }
 
   // Tokens of the unquoted form, so quoting cannot hide a flag or ref ("develop", 'm'ain, --"force").
   const tokens = unquoted.split(/[\s;&|()]+/).filter(Boolean);
-  const GIT_GLOBAL_WITH_VALUE = /^(-C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env)$/;
+  const GIT_GLOBAL_WITH_VALUE = /^(-C|-c|--git-dir|--work-tree|--namespace|--exec-path|--super-prefix|--config-env|--attr-source|--list-cmds)$/;
+  const KNOWN_GIT_FLAGS = /^(--version|--help|-v|-h|-p|--paginate|-P|--no-pager|--bare|--no-replace-objects|--no-lazy-fetch|--no-optional-locks|--no-advice|--literal-pathspecs|--glob-pathspecs|--noglob-pathspecs|--icase-pathspecs|--git-dir|--work-tree|--namespace|--exec-path|--attr-source|--config-env|--super-prefix|--list-cmds)$/;
   const gitAt = tokens.flatMap((t, i) => (/^git(\.exe)?$/i.test(path.basename(t.replace(/\\/g, '/'))) ? [i] : []));
   for (const i of gitAt) {
-    // Skip git's global options (and their values) to find the real subcommand.
+    // Skip git's global options (and their values) to find the subcommand. Config overrides of hooks,
+    // merge drivers or includes are blocked; an unknown option before the subcommand fails closed.
     let j = i + 1;
     while (j < tokens.length && tokens[j].startsWith('-')) {
       const opt = tokens[j];
-      const value = GIT_GLOBAL_WITH_VALUE.test(opt) ? tokens[j + 1] : opt.includes('=') ? opt.split('=').slice(1).join('=') : '';
-      if ((opt === '-c' || /^--config-env/.test(opt)) && /^(core\.hookspath|merge\.)/i.test(value ?? '')) {
-        block('do not override git hook paths or merge drivers.');
+      const takesValue = GIT_GLOBAL_WITH_VALUE.test(opt);
+      const value = takesValue ? tokens[j + 1] : opt.includes('=') ? opt.split('=').slice(1).join('=') : '';
+      if ((opt === '-c' || /^--config-env/.test(opt)) && /^(core\.hookspath|core\.fsmonitor|merge\.|include)/i.test(value ?? '')) {
+        block('do not override git hook paths, merge drivers or config includes.');
       }
-      j += GIT_GLOBAL_WITH_VALUE.test(opt) ? 2 : 1;
+      if (!takesValue && !KNOWN_GIT_FLAGS.test(opt.split('=')[0])) {
+        block(`unrecognised git option "${opt}" before the subcommand (fail closed).`);
+      }
+      j += takesValue ? 2 : 1;
     }
-    const sub = tokens[j];
-    const args = tokens.slice(j + 1);
+    // Run the push/commit checks whatever position the subcommand ends up in.
+    const rest = tokens.slice(i + 1);
+    const known = ['push', 'commit', 'merge', 'rebase', 'am', 'config'];
+    const sub = known.includes(tokens[j]) ? tokens[j] : (['push', 'commit'].find((s) => rest.includes(s)) ?? tokens[j]);
+    const args = rest;
     if (sub === 'push') {
       for (const a of args) {
         if (/^--force/i.test(a) || /^-[a-z]*f[a-z]*$/i.test(a) || /^\+/.test(a)) block('force pushes are not allowed.');
