@@ -250,3 +250,20 @@ Kept and merged PRs #22-#25 after the review and merged-gate run; accepted the
 in docs/verification/leader-setup-and-agentic-review-2026-11-06.md and the
 session handoff.
 ================================================
+Date: 2026-11-06
+Student: Ahmed Atef Youssef
+Tool: Claude Code (Claude Opus)
+Related Requirement: PAY-03, PAY-01
+Prompt:
+Verify my implemented Jira stories against the requirements workbook and the
+project description with zero tolerance for errors, then fix what fails,
+tests first.
+How the output was used:
+The review found two defects the fakes hid: refunds that Stripe creates as
+succeeded (normal for test cards, no refund.updated follows) stayed PENDING,
+and POST /payments after a failed attempt reused the first idempotency key and
+failed with a duplicate stripeId. I kept the fix after checking that the new
+tests fail without it: refunds take the status returned at creation, the
+webhook also handles refund.created and refund.failed, and paying again reuses
+the failed payment through the retry path. All gates rerun.
+================================================
