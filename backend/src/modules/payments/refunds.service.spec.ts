@@ -643,6 +643,127 @@ describe('PAY-03/PAY-01/PAY-04: database-level uniqueness', () => {
     },
   );
 
+  describe('webhook reconciles a claim kept after an ambiguous error', () => {
+    async function keptClaim() {
+      const pay = await payments.create(paymentFields());
+      const ctx = realService(String(pay._id));
+      ctx.stripe.refunds.create.mockRejectedValueOnce(
+        new Stripe.errors.StripeConnectionError({ message: 'timed out' }),
+      );
+      await expect(
+        ctx.svc.refundFor(BookingType.HOTEL, 'b1', 'USER'),
+      ).rejects.toThrow('timed out');
+      const claim = (await refunds.findOne({}).lean())!;
+      return { ...ctx, pay, claimId: String(claim._id) };
+    }
+
+    it('issue() sends the claim id as refundId in the Stripe metadata', async () => {
+      const pay = await payments.create(paymentFields());
+      const { svc, stripe } = realService(String(pay._id));
+      const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+      expect(stripe.refunds.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          metadata: expect.objectContaining({ refundId: r!.id }),
+        }),
+        expect.anything(),
+      );
+    });
+
+    it('refund.updated succeeded with metadata.refundId -> REFUNDED, stripeRefundId set, one notification; redelivery does not notify again', async () => {
+      const { svc, notifications, claimId } = await keptClaim();
+      const event = {
+        id: 're_late',
+        status: 'succeeded',
+        payment_intent: 'pi_1',
+        metadata: { refundId: claimId },
+      } as any;
+      await svc.applyStripeRefund(event);
+      const doc = await refunds.findById(claimId).lean();
+      expect(doc).toMatchObject({
+        status: 'REFUNDED',
+        stripeRefundId: 're_late',
+      });
+      expect(notifications.notify).toHaveBeenCalledTimes(1);
+      expect(notifications.notify).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ type: 'REFUND_COMPLETED' }),
+      );
+      await svc.applyStripeRefund(event);
+      expect(notifications.notify).toHaveBeenCalledTimes(1);
+      expect(await refunds.countDocuments({})).toBe(1);
+    });
+
+    it('payment_intent given as an expanded object is matched by its id', async () => {
+      const { svc, notifications, claimId } = await keptClaim();
+      await svc.applyStripeRefund({
+        id: 're_late',
+        status: 'failed',
+        payment_intent: { id: 'pi_1' },
+        metadata: { refundId: claimId },
+      } as any);
+      expect(await refunds.findById(claimId).lean()).toMatchObject({
+        status: 'FAILED',
+        stripeRefundId: 're_late',
+      });
+      expect(notifications.notify).toHaveBeenCalledWith(
+        'u1',
+        expect.objectContaining({ type: 'REFUND_FAILED' }),
+      );
+    });
+
+    it('metadata.refundId of a claim for another PaymentIntent changes nothing', async () => {
+      const { svc, notifications, claimId } = await keptClaim();
+      await svc.applyStripeRefund({
+        id: 're_other',
+        status: 'succeeded',
+        payment_intent: 'pi_other',
+        metadata: { refundId: claimId },
+      } as any);
+      expect(await refunds.findById(claimId).lean()).toMatchObject({
+        status: 'PENDING',
+        stripeRefundId: null,
+      });
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('an invalid ObjectId in metadata.refundId is ignored without throwing', async () => {
+      const { svc, notifications, claimId } = await keptClaim();
+      await expect(
+        svc.applyStripeRefund({
+          id: 're_x',
+          status: 'succeeded',
+          payment_intent: 'pi_1',
+          metadata: { refundId: 'not-an-id' },
+        } as any),
+      ).resolves.toBeUndefined();
+      expect(await refunds.findById(claimId).lean()).toMatchObject({
+        status: 'PENDING',
+        stripeRefundId: null,
+      });
+      expect(notifications.notify).not.toHaveBeenCalled();
+    });
+
+    it('matching by stripeRefundId still wins and notifies once', async () => {
+      const pay = await payments.create(paymentFields());
+      const { svc, notifications } = realService(String(pay._id));
+      const r = await svc.refundFor(BookingType.HOTEL, 'b1', 'USER');
+      notifications.notify.mockClear();
+      const event = {
+        id: 're_1',
+        status: 'succeeded',
+        payment_intent: 'pi_1',
+        metadata: { refundId: r!.id },
+      } as any;
+      await svc.applyStripeRefund(event);
+      await svc.applyStripeRefund(event);
+      expect(await refunds.findById(r!.id).lean()).toMatchObject({
+        status: 'REFUNDED',
+        stripeRefundId: 're_1',
+      });
+      expect(notifications.notify).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('the claim stores its idempotency key and Stripe receives that stored key', async () => {
     const pay = await payments.create(paymentFields());
     const { svc, stripe } = realService(String(pay._id));

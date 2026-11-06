@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { isValidObjectId, Model } from 'mongoose';
 import Stripe from 'stripe';
 import {
   BookingType,
@@ -209,6 +209,8 @@ export class RefundsService implements RefundsServiceContract {
             bookingId: payment.bookingId,
             paymentIntentId,
             reason,
+            // Lets the webhook find a claim whose Stripe id was never linked.
+            refundId: String(claim._id ?? claim.id),
           },
         },
         { idempotencyKey },
@@ -242,11 +244,12 @@ export class RefundsService implements RefundsServiceContract {
       status = RefundStatus.FAILED;
     if (!status) return;
     // Only the first delivery that changes the status notifies the user.
-    const doc = await this.refunds.findOneAndUpdate(
-      { stripeRefundId: refund.id, status: { $ne: status } },
-      { status },
-      { new: true },
-    );
+    const doc =
+      (await this.refunds.findOneAndUpdate(
+        { stripeRefundId: refund.id, status: { $ne: status } },
+        { status },
+        { new: true },
+      )) ?? (await this.linkClaim(refund, status));
     if (!doc) return;
     const amount = `${minorToDecimalString(doc.amountMinor, doc.currency)} ${doc.currency}`;
     const link = `/refunds/${String(doc.id ?? doc._id)}`;
@@ -265,6 +268,28 @@ export class RefundsService implements RefundsServiceContract {
         link,
       });
     }
+  }
+
+  /**
+   * A claim kept after an ambiguous Stripe error has no stripeRefundId; match
+   * it through metadata.refundId (same PI only) and link it atomically.
+   */
+  private async linkClaim(
+    refund: Stripe.Refund,
+    status: RefundStatus,
+  ): Promise<RefundDocument | null> {
+    const refundId: unknown = refund.metadata?.refundId;
+    if (typeof refundId !== 'string' || !isValidObjectId(refundId)) {
+      return null;
+    }
+    const pi = refund.payment_intent;
+    const paymentIntentId = typeof pi === 'string' ? pi : pi?.id;
+    if (!paymentIntentId) return null;
+    return this.refunds.findOneAndUpdate(
+      { _id: refundId, stripeRefundId: null, paymentIntentId },
+      { $set: { stripeRefundId: refund.id, status } },
+      { new: true },
+    );
   }
 
   async findById(id: string): Promise<RefundRecord | null> {
