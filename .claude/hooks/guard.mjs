@@ -118,17 +118,29 @@ function checkCommand(cmd) {
   const slashed = cmd.replace(/['"`^]/g, '').replace(/\\+/g, '/');
   const PROTECTED = /\.claude\/+(settings[^\s/]*\.json|hooks)|\.claude\/+\*|docs\/+requirements\/+(reqs\.json|project-description\.md|[^\s/]+\.xlsx|\*)|(^|[\s/=])\.git(\/|\*|\s|$)/i;
   const WRITES = /(^|[^<>&|0-9])>{1,2}(?!&)|\b(tee|rm|del|erase|mv|move|cp|copy|ren|rename|sed\s+-[a-z]*i|perl\s+-[a-z]*i|truncate|chmod|attrib|ln|install|rsync|Set-Content|Add-Content|Out-File|Remove-Item|Move-Item|Copy-Item|New-Item|Rename-Item|python3?|node|npx|ruby|powershell|pwsh|checkout|restore|apply|reset|stash|clean|worktree)\b/i;
+  // Check every normalised form: the raw command, backslashes removed (how bash reads `.cl\aude`) and
+  // backslashes as "/" (Windows paths). A match in any form counts.
+  const forms = [cmd, unquoted, slashed];
+  const any = (re) => forms.some((f) => re.test(f));
+  // Protected file names alone also count, so relative paths from inside a folder are caught.
+  const PROTECTED_NAMES = /(^|[\s/=])(guard\.mjs|session-start\.mjs|settings(\.local)?\.json|reqs\.json|project-description\.md|[^\s/]+\.xlsx)(\s|$)/i;
   const syntaxCheckOnly = /^[ \t]*node[ \t]+--check[ \t]+[\w./\\-]+[ \t]*$/i.test(cmd);
-  const touches = [cmd, slashed].some((c) => PROTECTED.test(c.replace(/\\+/g, '/')));
-  if (touches && WRITES.test(slashed) && !syntaxCheckOnly) {
+  if ((any(PROTECTED) || any(PROTECTED_NAMES)) && any(WRITES) && !syntaxCheckOnly) {
     block('the command may change the guard, project settings, .git internals or the official requirement files; a person changes those.');
   }
-  // Working from inside the protected folders would make relative paths invisible to the check above.
-  if (/(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i.test(slashed)) {
+  // Working from inside the protected folders would hide relative paths; changing directory and writing
+  // in the same command is refused outright.
+  const CD = /(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+/i;
+  if (any(/(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i)) {
     block('do not change directory into .claude, .git or docs/requirements; use paths from the project root.');
   }
+  if (any(CD) && any(WRITES) && !/^[ \t]*cd[ \t]+[\w./-]+[ \t]*&&[ \t]*(npm|npx jest|node \.github|git (status|diff|log|add|commit|push))\b/i.test(cmd)) {
+    if (forms.some((f) => /\.\.|\.claude|\.git\b|docs[\\/]+requirements/i.test(f))) {
+      block('changing directory and writing in one command near protected paths is not allowed; run from the project root.');
+    }
+  }
   // Git config injected through the environment (GIT_CONFIG_*, GIT_CONFIG_PARAMETERS) can set hooksPath.
-  if (/\bGIT_CONFIG(_[A-Z_]+|_PARAMETERS)?\b|\bGIT_DIR\b|\bGIT_WORK_TREE\b/i.test(slashed)) {
+  if (any(/\bGIT_CONFIG(_[A-Z_]+|_PARAMETERS)?\b|\bGIT_DIR\b|\bGIT_WORK_TREE\b/i)) {
     block('do not set git configuration or repository location through environment variables.');
   }
 
