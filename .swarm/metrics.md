@@ -22,14 +22,14 @@ verify-v2-1 | opus | 0 | 0 | ~120 | 151k | 76P/10Pa/1F/1U | 4 disagreements, Lea
 verify-v2-2 | general | 0 | 0 | ~90 | 148k | 11/11 rules killed, 2 secondary survived | mutation copy clean
 verify-v2-3 | opus | 0 | 0 | ~600 | 57k | 0 Crit/High, 8 Med, 6 Low | security
 verify-v2-4 | opus | 0 | 0 | ~100 | 30k | 10/10 rows rerun pass | raw commands run 0 tests
-fix-PAY-01-1 | opus | - | - | - | - | pending approval | F1,F2,F3,F17
-fix-PAY-03-1 | opus | - | - | - | - | pending approval | F4,F5,F13
+fix-PAY-01-1 | opus | - | 0 | - | not recorded | PASS, merged #23 | F1,F2,F3,F17; Leader fixed 1 e2e fixture
+fix-PAY-03-1 | opus | - | 0 | - | not recorded | PASS, merged #22 | F4,F5,F13; tokens lost (no /handoff after Wave A)
 fix-PAY-02-1 | sonnet | - | - | - | - | pending approval | F12
-fix-TRVL-130-1 | opus | - | - | - | - | pending approval | F6
+fix-TRVL-130-1 | opus | - | 0 | - | not recorded | PASS, merged #24 | F6; Leader review added .env.example NODE_ENV
 fix-TRVL-130-2 | sonnet | - | - | - | - | pending approval | F8; openapi.json after PAY-01-1
 fix-TRVL-130-3 | sonnet | - | - | - | - | pending approval | F15
 fix-TRVL-131-1 | sonnet | - | - | - | - | pending approval | F14
-fix-GEN-07-1 | sonnet | - | - | - | - | pending approval | F7
+fix-GEN-07-1 | sonnet | - | 0 | - | not recorded | PASS, merged #25 | F7; Leader replaced untyped hook
 fix-GEN-08-1 | sonnet | - | - | - | - | pending approval | F9
 fix-ITN-18-1 | sonnet | - | - | - | - | pending approval | F16
 fix-TRVL-134-1 | haiku | - | - | - | - | pending approval | F10 (Leader-only files)

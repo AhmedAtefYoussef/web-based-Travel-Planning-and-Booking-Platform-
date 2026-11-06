@@ -1,4 +1,4 @@
-v2
+v3
 ## repo
 Monorepo: backend/ (NestJS 11, TS, Mongoose 8, Jest), frontend/ (M2), docs/{requirements,architecture,api,agentic}, .github/.
 Requirements: docs/requirements/reqs.json ("acceptance"/"owner" on Ahmed rows). Plan: docs/requirements/plan.md (line index in CLAUDE.md).
@@ -6,7 +6,7 @@ Requirements: docs/requirements/reqs.json ("acceptance"/"owner" on Ahmed rows). 
 Prefix /api. Money: integer minor units in PLATFORM_CURRENCY; per-currency exponent in common/utils/money.ts.
 Errors {statusCode,error,message,fieldErrors?,path,timestamp}. Pagination ?page=N, size 10, {items,page,limit,total,totalPages}.
 Conventional Commits with [ID]; branches feature|fix|refactor|docs|test|chore|ci/<ID>-slug off develop. Secrets only in backend/.env.
-## backend layout (v2, develop c1cc80b)
+## backend layout (v3, develop e7b4743)
 src/config/env.schema.ts (Joi; MONGODB_URI by pattern, multi-host ok; DEV_AUTH_ENABLED refused in production).
 src/bootstrap/setup-app.ts (ValidationPipe, AllExceptionsFilter, cookie-parser, Swagger /api/docs + /api/docs-json, dev auth schemes).
 src/common/{contracts,stubs,decorators,guards,filters,pipes,dto,security,swagger,utils}. Inject contracts by token from contracts/tokens.ts.
@@ -23,6 +23,15 @@ D6 Default branch develop. D7 main strict=false; back-merge PRs (main->develop) 
 D8 MONGODB_URI validated by pattern, not Joi.uri() (PR#19). D9 Atlas db travel_platform; members readWriteAnyDatabase (risk).
 D11 Jira (owner-* labels) is the source of truth for ownership; docs/team/ownership.md + .claude/team.json are rebuilt from it.
 D10 .swarm tracked in git except tmp/ and web/; Claude settings deny pushes to develop/main and force pushes only.
+D12 PR conflicts: merge develop into the PR branch (no rebase + force-push); Leader verifies the result (2026-11-06).
+D13 AI_PROMPTS.txt conflicts: keep both entries in merge/date order. Never merge=union (shared Date/Student/Tool lines glue entries).
+D14 Local Jest on Windows: --runInBand (MongoMemoryServer 10 s start timeout under parallel suites); CI on Linux unaffected.
+D15 Payments confirm only if PI amount_received/currency == stored amount == booking total in PLATFORM_CURRENCY, else refund+log;
+   changed total -> new PI; webhook rejected without secret; others' payments 404 (PR#23).
+D16 Refund slot claimed in DB before Stripe (one PENDING/REFUNDED per PI); ambiguous Stripe error keeps the PENDING claim,
+   webhook links it via metadata.refundId; one PENDING payment per booking; stripeId unique; integer minorUnits (PR#22).
+D17 Env fail-closed: NODE_ENV required, live Stripe keys need STRIPE_ALLOW_LIVE_KEYS=true, production needs COOKIE_SECURE=true;
+   audit log rejects bulkWrite except insertOne (PR#24, #25).
 ## contracts and owners
 PAYABLE_BOOKING (stub -> Ahmed hold/confirm/lifecycle, Karim views/cancel), POLICIES_PROVIDER (stub -> Joudy airline, Sandra hotel), NOTIFICATIONS_SERVICE (stub -> Karim);
 PAYMENTS_SERVICE, REFUNDS_SERVICE, CURRENCY_SERVICE, AUDIT_SERVICE, UPLOADS_SERVICE real (Ahmed). Ahmed's expiry job (GEN-11) calls cancelForExpiredHold; Karim's

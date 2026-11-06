@@ -1,55 +1,59 @@
-# HANDOFF — 2026-11-05 (Leader session: Sprint 0 V&V, closed at context budget)
-Status: .swarm/state.md. Verification evidence: .swarm/verify/, .swarm/out/verify-*.md. Report: docs/verification/sprint0-verification-report.md.
+# HANDOFF — 2026-11-06 (Leader session: Wave A review, merge conflicts, Leader V&V)
+Status: .swarm/state.md. Reports: docs/verification/sprint0-verification-report.md (11-05),
+docs/verification/leader-setup-and-agentic-review-2026-11-06.md (11-06, uncommitted).
 
 ## Done this session
-- Sprint 0 V&V of Ahmed's scope at develop 6efa26b: xlsx -> CSV (.swarm/verify/xlsx/), drift 0 diffs / 115 rows, 243 atomic checks,
-  V1 x4 verifiers, V2-1 blind adversarial, V2-2 mutations (11/11 rules killed, 2 secondary survived), V2-3 security, V2-4 traceability.
-- Result: 188 PASS · 35 PARTIAL · 6 FAIL (2 not due) · 14 UNVERIFIABLE; 0 Critical/High, 11 Medium (F1-F11), 8 Low (F12-F19).
-- 12 fix cards written (.swarm/tasks/fix-*.md, template v2, test-first, disjoint OWNS). Committed ccf9394 on chore/VERIFY-sprint0.
-- Earlier: PRs #1-#21 merged (payments/foundation, PR gate, v2 operating model). Releases develop -> main #13, #15 (untagged).
+- Reviewed Wave A PRs #22 (PAY-03), #23 (PAY-01), #24 (TRVL-130), #25 (GEN-07) against the xlsx
+  (rechecked against the workbook: texts identical) and the fix cards; all four merged together pass
+  build/lint/unit 237/e2e 89, no OpenAPI drift. Verdict: keep all, none closed. Ahmed merged #22–#25 (develop e7b4743).
+- #24: pushed a895203 (.env.example NODE_ENV=development; comment fixed).
+- #23: resolved AI_PROMPTS.txt conflict by merging develop into the branch (198ce11), both entries kept.
+  #24/#25 had already been updated from develop under Ahmed's account; contents verified correct.
+- Leader V&V: repo hygiene, project-description setup duties, before/after context engineering.
+  Findings F1–F7 + agentic metrics in the 11-06 report.
+- Local only: merged origin/develop into chore/VERIFY-sprint0 (d465dcd; AI_PROMPTS conflict, both kept).
 
-## Approval (Ahmed in chat, 2026-11-05): "All" — to "Approve fix cards? (all / list / none)". No card dispatched yet.
+## Incident (fixed)
+I wrote `AI_PROMPTS.txt merge=union` into .git/info/attributes (shared by all worktrees) during a scratch
+integration merge; removed before the #23 resolution. #24's first develop merge (17:30) ran while it was
+active; repaired by e283a76. Lesson recorded in state.md LESSONS.
 
 ## In flight
-- Branch chore/VERIFY-sprint0 (local, NOT pushed): report + cards + .swarm updates. Needs push + PR into develop (Ahmed's call).
-- PR#20 feature/TRVL-140-hotel-schemas (Sandra) — waiting for Ahmed's review.
-- No failing tests at 6efa26b (unit 172/172, e2e 87/87).
-
-## Dispatch plan for the approved cards (worker agent, one worktree per card, from origin/develop)
-Wave A (Medium, money first): fix-PAY-01-1 (opus), fix-PAY-03-1 (opus), fix-TRVL-130-1 (opus), fix-GEN-07-1 (sonnet).
-Wave B: fix-GEN-08-1, fix-ITN-18-1, fix-PAY-02-1, fix-TRVL-130-2 (after PAY-01-1 merges: both touch docs/api/openapi.json).
-Wave C: fix-TRVL-130-3, fix-TRVL-131-1, fix-TRVL-134-1 (Leader-only files: traceability.md, README.md).
-fix-DLV-13-1: card says "owner TBD; Ahmed assigns before dispatch" — confirm owner (or Ahmed) before running it.
-Max 4 concurrent workers (npm ci + mongodb-memory-server per worktree). Re-check CTX and origin/develop SHA in each card first.
-fix-GEN-08-1 edits common/contracts/uploads* (Leader-owned path): approved via "All"; review that diff in its PR.
-After each wave: swarm-verify, update metrics rows (pending -> verdict), traceability rows.
+- Branch chore/VERIFY-sprint0 (local, NOT pushed), 3 ahead of develop: sprint0 report, fix cards, .swarm updates,
+  this handoff. Uncommitted: docs/verification/leader-setup-and-agentic-review-2026-11-06.md, .swarm/* edits, bulletin.md.
+- PR #20 (Sandra, TRVL-140 hotel schemas): open since 11-04, 0 reviews.
+- Proposed session card "Stop AI_PROMPTS.txt merge conflicts" (task_91c4dfd9): per-PR fragment files + build script.
+- No failing tests at develop e7b4743 (unit 237/237, e2e 89/89, serial runs).
 
 ## Decisions (where recorded)
-- V1/V2 disagreements resolved by rerun/read, not vote: .swarm/verify/resolutions.md.
-- PAY-01-26 (live Stripe key accepted) = PARTIAL + Medium, not FAIL: resolutions.md.
-- TRVL-136-1 and DLV-1 = FAIL "not due" (2026-11-20), not defects: resolutions.md, report §2.
-- Earlier decisions D1-D10: .swarm/context.md ## decisions.
+- Keep PRs #22–#25 (all requirements met): this file + 11-06 report §B/§C.
+- Resolve PR conflicts by merging develop into the PR branch, never rebase + force-push: context.md D12.
+- AI_PROMPTS conflicts: keep both entries in merge/date order; never merge=union: context.md D13.
+- Local Jest on Windows: run --runInBand (MongoMemoryServer 10 s start timeout): context.md D14.
+- Wave A behaviour (amount cross-check, refund claim, env fail-closed, audit bulkWrite): context.md D15–D17.
 
 ## Next 3 actions
-1. Dispatch Wave A (4 workers) per the plan above.
-2. Push chore/VERIFY-sprint0 and open the PR into develop (Ahmed approves/merges).
-3. Booking engine test-first (FLT-22/HTL-18 holds, FLT-23/HTL-17, GEN-11, TRVL-144); TRVL-136 freeze 11-18, tag v1.0.0-m1 11-20.
+1. Push chore/VERIFY-sprint0 and open a docs PR into develop (PRs #22–#25 cite the sprint0 report, missing on develop).
+2. Review/merge PR #20; then booking engine test-first: FLT-22/HTL-18 holds, FLT-23/HTL-17, GEN-11, TRVL-144.
+3. Dispatch Wave B (fix-GEN-08-1, fix-ITN-18-1, fix-PAY-02-1, fix-TRVL-130-2) and a deps PR for npm audit (multer, js-yaml).
 
 ## Open questions for Ahmed
-1. Owner for fix-DLV-13-1 (reference-dataset seed, project-description L123-127)?
-2. Commit ce0a259 (env.schema.spec.ts, removed in 2e264c6) had an inline mongodb+srv credential: real Atlas password? Rotate if so.
-3. Jira: Sprint 0 still active after 11-04; 7 Done stories sit in future sprints — fix sprint placement?
-4. Every member needs merged commits before 11-20 (DLV-7); off-pattern branches (DLV-8) retire?
-5. Helmet/@nestjs/throttler (needs a dependency) and enforce_admins=false: decide.
-6. Earlier: PR authors can merge after approval (personal repo) vs GitHub org; tighten Atlas roles/network; WARP connectivity.
+1. Owner for fix-DLV-13-1 (reference-dataset seed)?
+2. Commit ce0a259 had an inline mongodb+srv credential: real Atlas password? Rotate if so.
+3. Start task_91c4dfd9 (AI_PROMPTS fragments) before members open PRs?
+4. Teammate review on Leader PRs (all 24 merged with REVIEW_REQUIRED via admin), enforce_admins, auto-delete branches?
+5. Wave A Jira: TRVL-67/69/102/109/111 already Done — add PR links only? (no Jira write done this session)
+6. Atlas: tighten member roles / 0.0.0.0/0 (not inspected; Atlas tools not authorised).
 
 ## Do not do
 - Do not read or print backend/.env, .env*, team-db-access/** or keys. Do not commit them.
 - Do not push to develop/main, force-push, or merge with --admin. Ahmed merges.
+- Do not write .git/info or git config from agents; scratch merges resolve conflicts by hand.
 - Do not write Jira from subagents; main session only, after Ahmed says yes in chat.
 - Do not merge main -> develop back-merge PRs; close them.
-- Do not weaken or delete a test to go green; do not mark traceability PASS without running the named test.
+- Do not weaken or delete a test to go green; traceability PASS only after running the named test.
 - Do not read plan.md / reqs.json / openapi.json whole; use the CLAUDE.md line index or Grep.
 
 ## Worktree cleanup
-Verification worktrees .swarm/tmp/verify-sprint0 and mutate-sprint0 removed 2026-11-05 (both clean); git worktree prune run.
+Scratch worktrees (merged, dev) removed. Still present: 4 Wave A worktrees under .claude/worktrees/ (branches merged)
+and a detached scratchpad/integ from another session; clean with clean_up_worktrees after Ahmed confirms.
