@@ -123,21 +123,22 @@ function checkCommand(cmd) {
   const forms = [cmd, unquoted, slashed];
   const any = (re) => forms.some((f) => re.test(f));
   // Protected file names alone also count, so relative paths from inside a folder are caught.
-  const PROTECTED_NAMES = /(^|[\s/=])(guard\.mjs|session-start\.mjs|settings(\.local)?\.json|reqs\.json|project-description\.md|[^\s/]+\.xlsx)(\s|$)/i;
+  const PROTECTED_NAMES = /(^|[^\w.-])(guard\.mjs|session-start\.mjs|settings(\.local)?\.json|reqs\.json|project-description\.md|[\w.-]+\.xlsx)(?![\w.-])/i;
   const syntaxCheckOnly = /^[ \t]*node[ \t]+--check[ \t]+[\w./\\-]+[ \t]*$/i.test(cmd);
   if ((any(PROTECTED) || any(PROTECTED_NAMES)) && any(WRITES) && !syntaxCheckOnly) {
     block('the command may change the guard, project settings, .git internals or the official requirement files; a person changes those.');
   }
   // Working from inside the protected folders would hide relative paths; changing directory and writing
   // in the same command is refused outright.
-  const CD = /(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+/i;
-  if (any(/(^|[\s;&|(])(cd|pushd|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i)) {
+  const CD = /(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)(\s|$)/i;
+  if (any(/(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i)) {
     block('do not change directory into .claude, .git or docs/requirements; use paths from the project root.');
   }
-  if (any(CD) && any(WRITES) && !/^[ \t]*cd[ \t]+[\w./-]+[ \t]*&&[ \t]*(npm|npx jest|node \.github|git (status|diff|log|add|commit|push))\b/i.test(cmd)) {
-    if (forms.some((f) => /\.\.|\.claude|\.git\b|docs[\\/]+requirements/i.test(f))) {
-      block('changing directory and writing in one command near protected paths is not allowed; run from the project root.');
-    }
+  // A directory change plus any write is refused unless the WHOLE command is one of these exact forms
+  // (one plain cd into backend/ or frontend/, then one npm/npx jest call, nothing after it).
+  const CD_ALLOWED = /^[ \t]*cd[ \t]+(backend|frontend)\/?[ \t]*&&[ \t]*(npm[ \t]+(ci|test|run[ \t]+[\w:-]+|audit)|npx[ \t]+jest)([ \t]+[\w./:=@-]+|[ \t]+"[\w ./:=@\\()|-]+")*[ \t]*$/i;
+  if (any(CD) && any(WRITES) && !CD_ALLOWED.test(cmd)) {
+    block('changing directory and writing in one command is not allowed; run from the project root or use `cd backend && npm ...`.');
   }
   // Git config injected through the environment (GIT_CONFIG_*, GIT_CONFIG_PARAMETERS) can set hooksPath.
   if (any(/\bGIT_CONFIG(_[A-Z_]+|_PARAMETERS)?\b|\bGIT_DIR\b|\bGIT_WORK_TREE\b/i)) {
