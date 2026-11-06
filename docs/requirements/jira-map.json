@@ -1,0 +1,1495 @@
+{
+ "snapshot": "2026-11-06",
+ "source": "Jira project TRVL (read-only export; Jira wins on conflict). Regenerate with the jira-sync skill.",
+ "sprints": {
+  "S0": "Sprint 0 - Foundation 2026-11-02..11-04",
+  "S1": "Sprint 1 - Core Domain 2026-11-05..11-11",
+  "S2": "Sprint 2 - Business Logic 2026-11-12..11-17",
+  "H&R": "Hardening & Release 2026-11-18..11-20 (tag v1.0.0-m1)",
+  "S3": "Sprint 3 - Frontend Core 2026-11-21..11-27",
+  "S4": "Sprint 4 - Frontend Flows 2026-11-28..12-04",
+  "S5": "Sprint 5 - Integration 2026-12-05..12-11"
+ },
+ "items": [
+  {
+   "id": "ACC-01",
+   "jira": "TRVL-13",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Guest registration with unique email, password rules and mandatory consent"
+  },
+  {
+   "id": "ACC-04",
+   "jira": "TRVL-14",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Login with email/password, role-based landing, generic failure and suspended messages"
+  },
+  {
+   "id": "ACC-05",
+   "jira": "TRVL-15",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Lock account for 15 minutes after 5 consecutive failed logins"
+  },
+  {
+   "id": "ACC-06",
+   "jira": "TRVL-16",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Logout (clear cookies, revoke refresh token) and 30-minute idle session expiry"
+  },
+  {
+   "id": "ACC-07a",
+   "jira": "TRVL-17",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin resets a user/moderator password to a temporary password (forced change)"
+  },
+  {
+   "id": "ACC-08",
+   "jira": "TRVL-18",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Change password with current password and rule-compliant new password"
+  },
+  {
+   "id": "ACC-09",
+   "jira": "TRVL-19",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Edit profile: name, phone number, preferred currency"
+  },
+  {
+   "id": "ACC-10",
+   "jira": "TRVL-20",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Redirect guests to login on restricted actions and return them afterwards"
+  },
+  {
+   "id": "ACC-11",
+   "jira": "TRVL-21",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Owner-only access to bookings and private itineraries (admin/moderator exceptions)"
+  },
+  {
+   "id": "ACC-12",
+   "jira": "TRVL-22",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Self-deactivation with confirmation, blocked by upcoming Confirmed bookings"
+  },
+  {
+   "id": "ACC-13",
+   "jira": "TRVL-23",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin creates hotel/airline moderator linked to exactly one provider"
+  },
+  {
+   "id": "ACC-14",
+   "jira": "TRVL-24",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin lists accounts with search by name/email and role/status filters"
+  },
+  {
+   "id": "ACC-15",
+   "jira": "TRVL-25",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin suspends/reactivates moderators and deactivates/reactivates providers"
+  },
+  {
+   "id": "ACC-16",
+   "jira": "TRVL-26",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin suspends/reactivates registered users"
+  },
+  {
+   "id": "ACC-17",
+   "jira": "TRVL-27",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin read-only list of all flight and hotel bookings with filters"
+  },
+  {
+   "id": "FLT-01",
+   "jira": "TRVL-28",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin creates airline; airline moderator edits name, code, logo"
+  },
+  {
+   "id": "FLT-02",
+   "jira": "TRVL-29",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Predefined read-only airport list with IANA time zones"
+  },
+  {
+   "id": "FLT-03",
+   "jira": "TRVL-30",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Create flight in airports' local times, stored in UTC, with validation rules"
+  },
+  {
+   "id": "FLT-04",
+   "jira": "TRVL-31",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Define cabin categories per flight (seats, price, free baggage, max kg)"
+  },
+  {
+   "id": "FLT-05",
+   "jira": "TRVL-32",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Edit Scheduled flights: times, prices, seat counts (with restrictions and notifications)"
+  },
+  {
+   "id": "FLT-06",
+   "jira": "TRVL-33",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Cancel a Scheduled flight: cancel bookings with 100% refund, release holds, notify"
+  },
+  {
+   "id": "FLT-08",
+   "jira": "TRVL-34",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Extra baggage policy: price per extra bag and max extra bags per passenger"
+  },
+  {
+   "id": "FLT-09",
+   "jira": "TRVL-35",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Airline cancellation tiers (days-before threshold, refund %) and selection rule"
+  },
+  {
+   "id": "FLT-11",
+   "jira": "TRVL-36",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "One-way flight search by airports, local departure date and passenger count"
+  },
+  {
+   "id": "FLT-12",
+   "jira": "TRVL-37",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Round-trip search, passenger types (adult/child/infant) and cabin filter"
+  },
+  {
+   "id": "FLT-15",
+   "jira": "TRVL-38",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Flight results price range filter and sort by price, duration, departure"
+  },
+  {
+   "id": "FLT-17",
+   "jira": "TRVL-39",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Flight details: local times, duration, cabins with seats left, baggage, policy"
+  },
+  {
+   "id": "FLT-19",
+   "jira": "TRVL-40",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Enter passenger details (name, DOB, passport/ID) and extra baggage during booking"
+  },
+  {
+   "id": "FLT-21",
+   "jira": "TRVL-41",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Flight booking summary before payment"
+  },
+  {
+   "id": "FLT-22",
+   "jira": "TRVL-42",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Atomic seat hold for 10 minutes as Pending Payment; expiry releases seats"
+  },
+  {
+   "id": "FLT-23",
+   "jira": "TRVL-43",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Confirm flight booking after payment: booked seats, reference, notification, e-ticket PDF"
+  },
+  {
+   "id": "FLT-25",
+   "jira": "TRVL-44",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "My flight bookings grouped Upcoming / Past / Cancelled with details"
+  },
+  {
+   "id": "FLT-26",
+   "jira": "TRVL-45",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "User cancels Confirmed flight booking before departure with tier-based refund"
+  },
+  {
+   "id": "FLT-29",
+   "jira": "TRVL-46",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Airline moderator views bookings per flight and exports passenger list CSV"
+  },
+  {
+   "id": "HTL-01",
+   "jira": "TRVL-47",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin creates hotel; hotel moderator edits hotel profile"
+  },
+  {
+   "id": "HTL-02",
+   "jira": "TRVL-48",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hotel details page data: profile, policies, rating, reviews, available rooms"
+  },
+  {
+   "id": "HTL-03",
+   "jira": "TRVL-49",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Add room (unique number, type, beds, occupancy, price per night)"
+  },
+  {
+   "id": "HTL-04",
+   "jira": "TRVL-50",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Define non-overlapping bookable date ranges per room"
+  },
+  {
+   "id": "HTL-05",
+   "jira": "TRVL-51",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Edit room beds, occupancy, price and availability (protect confirmed dates)"
+  },
+  {
+   "id": "HTL-06",
+   "jira": "TRVL-52",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Block date ranges, deactivate or delete rooms (with overlap rules)"
+  },
+  {
+   "id": "HTL-08",
+   "jira": "TRVL-53",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Room status calendar: Available / Booked (reference) / Blocked"
+  },
+  {
+   "id": "HTL-09",
+   "jira": "TRVL-54",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Set hotel check-in and check-out times"
+  },
+  {
+   "id": "HTL-10",
+   "jira": "TRVL-55",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hotel cancellation tiers (days before check-in, refund %)"
+  },
+  {
+   "id": "HTL-11",
+   "jira": "TRVL-56",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hotel search by city/country, dates, guests and rooms"
+  },
+  {
+   "id": "HTL-12",
+   "jira": "TRVL-57",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hotel results price and minimum rating filters, sort by price or rating"
+  },
+  {
+   "id": "HTL-15",
+   "jira": "TRVL-58",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "List a hotel's free rooms for the searched dates with stay totals"
+  },
+  {
+   "id": "HTL-16",
+   "jira": "TRVL-59",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Book multiple rooms in one reservation with guests per room and occupancy rules"
+  },
+  {
+   "id": "HTL-17",
+   "jira": "TRVL-60",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Confirm hotel reservation after payment: reference and notification"
+  },
+  {
+   "id": "HTL-18",
+   "jira": "TRVL-61",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hold all selected rooms for 10 minutes as one Pending Payment reservation (all or nothing)"
+  },
+  {
+   "id": "HTL-20",
+   "jira": "TRVL-62",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "My hotel reservations grouped Upcoming / Past / Cancelled with details"
+  },
+  {
+   "id": "HTL-21",
+   "jira": "TRVL-63",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "User cancels whole Confirmed reservation before check-in with tier-based refund"
+  },
+  {
+   "id": "HTL-22",
+   "jira": "TRVL-64",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Hotel moderator views reservations for their hotel"
+  },
+  {
+   "id": "HTL-23",
+   "jira": "TRVL-65",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Completed reservations: one rating/review per reservation, edit/delete, recalc average"
+  },
+  {
+   "id": "HTL-24",
+   "jira": "TRVL-66",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Public hotel rating summary and paginated reviews (newest first)"
+  },
+  {
+   "id": "PAY-01",
+   "jira": "TRVL-67",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Stripe test-mode payment within hold; webhook-verified confirmation; retry; cancel on expiry"
+  },
+  {
+   "id": "PAY-02",
+   "jira": "TRVL-68",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Show provider policies and require timestamped acceptance before payment"
+  },
+  {
+   "id": "PAY-03",
+   "jira": "TRVL-69",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Refunds via Stripe Refunds API with Pending/Refunded/Failed status and notification"
+  },
+  {
+   "id": "ITN-01",
+   "jira": "TRVL-70",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Create, edit and delete itineraries (title, countries, start date; private by default)"
+  },
+  {
+   "id": "ITN-03",
+   "jira": "TRVL-71",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "List my itineraries (most recently updated first) and open details"
+  },
+  {
+   "id": "ITN-05",
+   "jira": "TRVL-72",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Add days and edit day city and notes (derived dates, max 60 days)"
+  },
+  {
+   "id": "ITN-07",
+   "jira": "TRVL-73",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Delete a day with renumbering and recalculated dates and budgets"
+  },
+  {
+   "id": "ITN-08",
+   "jira": "TRVL-74",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Move a day to a new position with renumbering and regrouping"
+  },
+  {
+   "id": "ITN-09",
+   "jira": "TRVL-75",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Required city per day and grouping of consecutive same-city days with subtotals"
+  },
+  {
+   "id": "ITN-10",
+   "jira": "TRVL-76",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Add, edit and delete activities (name, description, optional time and cost)"
+  },
+  {
+   "id": "ITN-12",
+   "jira": "TRVL-77",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Attach and remove activity images (GEN-08 rules)"
+  },
+  {
+   "id": "ITN-14",
+   "jira": "TRVL-78",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Budget entries per day by category and budget totals by category and day"
+  },
+  {
+   "id": "ITN-16",
+   "jira": "TRVL-79",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Intercity transport cost entries (mode, from/to city, amount, currency, day)"
+  },
+  {
+   "id": "ITN-18",
+   "jira": "TRVL-80",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Convert budgets to preferred currency with daily cached exchange rates"
+  },
+  {
+   "id": "ITN-20",
+   "jira": "TRVL-81",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Itinerary visibility Public / Private"
+  },
+  {
+   "id": "ITN-21",
+   "jira": "TRVL-82",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Search and view public itineraries; clone as private copy crediting the author"
+  },
+  {
+   "id": "ITN-25",
+   "jira": "TRVL-83",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Find hotels for an itinerary city group (reuses hotel search)"
+  },
+  {
+   "id": "ITN-26",
+   "jira": "TRVL-84",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Find flights to the itinerary's first city (reuses flight search)"
+  },
+  {
+   "id": "BLG-01",
+   "jira": "TRVL-85",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Create post (title, body, tags, images) as Draft or Published"
+  },
+  {
+   "id": "BLG-02",
+   "jira": "TRVL-86",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Browse published posts (paginated, tag filter) and view a post"
+  },
+  {
+   "id": "BLG-03",
+   "jira": "TRVL-87",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "List my posts including drafts with like and comment counts"
+  },
+  {
+   "id": "BLG-04",
+   "jira": "TRVL-88",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Author edits and deletes own posts"
+  },
+  {
+   "id": "BLG-05",
+   "jira": "TRVL-89",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Comment on published posts (1-500 characters, chronological)"
+  },
+  {
+   "id": "BLG-06",
+   "jira": "TRVL-90",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Like a post once and remove the like"
+  },
+  {
+   "id": "BLG-07",
+   "jira": "TRVL-91",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Edit and delete own comments"
+  },
+  {
+   "id": "BLG-08",
+   "jira": "TRVL-92",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Post tags (max 5, 30 characters each), searchable and clickable"
+  },
+  {
+   "id": "BLG-09",
+   "jira": "TRVL-93",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Search published posts by keyword, ordered by interaction score"
+  },
+  {
+   "id": "BLG-10",
+   "jira": "TRVL-94",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Attach and remove post images (GEN-08 rules)"
+  },
+  {
+   "id": "BLG-12",
+   "jira": "TRVL-95",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Public author page: name, join date, posts, public itineraries"
+  },
+  {
+   "id": "GEN-01",
+   "jira": "TRVL-96",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "In-app notifications: unread count, list, mark as read"
+  },
+  {
+   "id": "GEN-02",
+   "jira": "TRVL-97",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Field-level validation messages (backend fieldErrors contract)"
+  },
+  {
+   "id": "GEN-03",
+   "jira": "TRVL-98",
+   "kind": "requirement",
+   "owner": "karim",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Confirmation before destructive actions (frontend)"
+  },
+  {
+   "id": "GEN-04",
+   "jira": "TRVL-99",
+   "kind": "requirement",
+   "owner": "sarah",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Friendly empty states (frontend)"
+  },
+  {
+   "id": "GEN-05",
+   "jira": "TRVL-100",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Paginate every list with page size 10"
+  },
+  {
+   "id": "GEN-06",
+   "jira": "TRVL-101",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Show flight times in each airport's local time zone"
+  },
+  {
+   "id": "GEN-07",
+   "jira": "TRVL-102",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Audit log of admin actions"
+  },
+  {
+   "id": "GEN-08",
+   "jira": "TRVL-103",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Image uploads: JPG/PNG, max 5 MB, 5 per entity, 1 airline logo"
+  },
+  {
+   "id": "GEN-09",
+   "jira": "TRVL-104",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Report a post, comment, review or itinerary once per item"
+  },
+  {
+   "id": "GEN-10",
+   "jira": "TRVL-105",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Admin resolves reports and hides or deletes content directly"
+  },
+  {
+   "id": "GEN-11",
+   "jira": "TRVL-106",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Booking lifecycle: Pending Payment, Confirmed, Completed, Expired, Cancelled"
+  },
+  {
+   "id": "FLT-30",
+   "jira": "TRVL-107",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Flight status lifecycle: Scheduled, Cancelled, Departed"
+  },
+  {
+   "id": "ACC-18",
+   "jira": "TRVL-108",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Seed admin accounts at setup; no admin self-registration"
+  },
+  {
+   "id": "PAY-04",
+   "jira": "TRVL-109",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Single platform currency for prices, payments and refunds"
+  },
+  {
+   "id": "GEN-12",
+   "jira": "TRVL-110",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Seed reference data: airports, cities, countries, currencies"
+  },
+  {
+   "id": "GEN-13",
+   "jira": "TRVL-111",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Backend-enforced validation, rules and authorisation; salted password hashes"
+  },
+  {
+   "id": "ACC-19",
+   "jira": "TRVL-112",
+   "kind": "requirement",
+   "owner": "abdelrahman",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "httpOnly Secure SameSite access/refresh cookies and /auth/me (no JS-accessible tokens)"
+  },
+  {
+   "id": "GEN-14",
+   "jira": "TRVL-113",
+   "kind": "requirement",
+   "owner": "malak",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Clear information architecture and navigation (frontend)"
+  },
+  {
+   "id": "GEN-15",
+   "jira": "TRVL-114",
+   "kind": "requirement",
+   "owner": "joudy",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Intuitive, efficient interface (frontend)"
+  },
+  {
+   "id": "GEN-16",
+   "jira": "TRVL-115",
+   "kind": "requirement",
+   "owner": "sandra",
+   "sprint": "S5",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Feedback states and responsive layout (frontend)"
+  },
+  {
+   "id": "GEN-17",
+   "jira": "TRVL-116",
+   "kind": "requirement",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Consistent visual design system (frontend)"
+  },
+  {
+   "id": "ACC-02",
+   "jira": "TRVL-117",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Email verification after registration (bonus)"
+  },
+  {
+   "id": "ACC-07",
+   "jira": "TRVL-118",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Forgot-password email reset link (bonus)"
+  },
+  {
+   "id": "GEN-01-B",
+   "jira": "TRVL-119",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Email notifications via SMTP (bonus)"
+  },
+  {
+   "id": "FLT-27",
+   "jira": "TRVL-120",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Change a confirmed flight booking (bonus)"
+  },
+  {
+   "id": "FLT-28",
+   "jira": "TRVL-121",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Seat selection (bonus)"
+  },
+  {
+   "id": "HTL-26",
+   "jira": "TRVL-122",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Hotel moderator replies to reviews (bonus)"
+  },
+  {
+   "id": "ITN-27",
+   "jira": "TRVL-123",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Link booked flights and hotels to itinerary days (bonus)"
+  },
+  {
+   "id": "ITN-28",
+   "jira": "TRVL-124",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Export itinerary as PDF (bonus)"
+  },
+  {
+   "id": "BLG-13",
+   "jira": "TRVL-125",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Attach an itinerary to a post (bonus)"
+  },
+  {
+   "id": "BON-01",
+   "jira": "TRVL-126",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Admin analytics dashboard (bonus)"
+  },
+  {
+   "id": "BON-02",
+   "jira": "TRVL-127",
+   "kind": "requirement",
+   "owner": null,
+   "sprint": null,
+   "milestone": "bonus",
+   "status": "To Do",
+   "title": "Favourites for hotels and public itineraries (bonus)"
+  },
+  {
+   "id": "TRVL-128",
+   "jira": "TRVL-128",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Create MongoDB Atlas cluster and share credentials securely"
+  },
+  {
+   "id": "TRVL-129",
+   "jira": "TRVL-129",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Scaffold repository, branches and protection rules"
+  },
+  {
+   "id": "TRVL-130",
+   "jira": "TRVL-130",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "NestJS common layer: config, validation, errors, pagination, Swagger"
+  },
+  {
+   "id": "TRVL-131",
+   "jira": "TRVL-131",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Auth contract stubs: @Public, @Roles, @CurrentUser + temporary guard"
+  },
+  {
+   "id": "TRVL-132",
+   "jira": "TRVL-132",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Cross-module contracts (common/contracts)"
+  },
+  {
+   "id": "TRVL-133",
+   "jira": "TRVL-133",
+   "kind": "setup",
+   "owner": "ahmed",
+   "sprint": "S1",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "CurrencyModule: FXRatesAPI daily rates with cached fallback"
+  },
+  {
+   "id": "TRVL-134",
+   "jira": "TRVL-134",
+   "kind": "docs",
+   "owner": "ahmed",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "Traceability matrix, ERD and ADRs"
+  },
+  {
+   "id": "TRVL-135",
+   "jira": "TRVL-135",
+   "kind": "docs",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "Done",
+   "title": "README, Swagger demo script and AI_PROMPTS.txt"
+  },
+  {
+   "id": "TRVL-136",
+   "jira": "TRVL-136",
+   "kind": "release",
+   "owner": "ahmed",
+   "sprint": "H&R",
+   "milestone": "M1",
+   "status": "In Progress",
+   "title": "Code freeze, bug bash and v1.0.0-m1 release"
+  },
+  {
+   "id": "TRVL-137",
+   "jira": "TRVL-137",
+   "kind": "design",
+   "owner": "abdelrahman",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Users & sessions schemas + admin seed"
+  },
+  {
+   "id": "TRVL-138",
+   "jira": "TRVL-138",
+   "kind": "design",
+   "owner": "joudy",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Airlines, flights & cabins schemas"
+  },
+  {
+   "id": "TRVL-139",
+   "jira": "TRVL-139",
+   "kind": "design",
+   "owner": "karim",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Flight booking, hotel reservation & notification schemas + lifecycle doc"
+  },
+  {
+   "id": "TRVL-140",
+   "jira": "TRVL-140",
+   "kind": "design",
+   "owner": "sandra",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "In Progress",
+   "title": "Hotels, rooms, room_nights & reviews schemas"
+  },
+  {
+   "id": "TRVL-141",
+   "jira": "TRVL-141",
+   "kind": "design",
+   "owner": "sarah",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Itineraries & activities schemas + day/date/group rules"
+  },
+  {
+   "id": "TRVL-142",
+   "jira": "TRVL-142",
+   "kind": "design",
+   "owner": "malak",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Posts, comments, likes & reports schemas + visibility rules"
+  },
+  {
+   "id": "TRVL-143",
+   "jira": "TRVL-143",
+   "kind": "design",
+   "owner": "malak",
+   "sprint": "S0",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Budget entries & transport costs schemas"
+  },
+  {
+   "id": "TRVL-144",
+   "jira": "TRVL-144",
+   "kind": "test",
+   "owner": "ahmed",
+   "sprint": "S2",
+   "milestone": "M1",
+   "status": "To Do",
+   "title": "Concurrency e2e tests for flight holds and hotel holds"
+  },
+  {
+   "id": "FE-01",
+   "jira": "TRVL-145",
+   "kind": "frontend",
+   "owner": "ahmed",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Next.js foundation: App Router, API client, auth context, route protection, layouts"
+  },
+  {
+   "id": "FE-02",
+   "jira": "TRVL-146",
+   "kind": "frontend",
+   "owner": "ahmed",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Checkout and payment flow for flights and hotels (Stripe Elements)"
+  },
+  {
+   "id": "FE-03",
+   "jira": "TRVL-147",
+   "kind": "frontend",
+   "owner": "abdelrahman",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Registration, login, password and profile pages"
+  },
+  {
+   "id": "FE-04",
+   "jira": "TRVL-148",
+   "kind": "frontend",
+   "owner": "abdelrahman",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "In-app notifications UI (bell, unread count, list, mark as read)"
+  },
+  {
+   "id": "FE-05",
+   "jira": "TRVL-149",
+   "kind": "frontend",
+   "owner": "karim",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Admin console: accounts, moderators, providers, bookings, audit log"
+  },
+  {
+   "id": "FE-06",
+   "jira": "TRVL-150",
+   "kind": "frontend",
+   "owner": "joudy",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Flight search, results and flight details pages"
+  },
+  {
+   "id": "FE-07",
+   "jira": "TRVL-151",
+   "kind": "frontend",
+   "owner": "joudy",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Airline moderator dashboard"
+  },
+  {
+   "id": "FE-08",
+   "jira": "TRVL-152",
+   "kind": "frontend",
+   "owner": "sandra",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Hotel search, results and hotel details pages"
+  },
+  {
+   "id": "FE-09",
+   "jira": "TRVL-153",
+   "kind": "frontend",
+   "owner": "sandra",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Hotel moderator dashboard"
+  },
+  {
+   "id": "FE-10",
+   "jira": "TRVL-154",
+   "kind": "frontend",
+   "owner": "karim",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "My bookings, cancellations, refunds and hotel reviews"
+  },
+  {
+   "id": "FE-11",
+   "jira": "TRVL-155",
+   "kind": "frontend",
+   "owner": "sarah",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Itinerary editor"
+  },
+  {
+   "id": "FE-12",
+   "jira": "TRVL-156",
+   "kind": "frontend",
+   "owner": "sarah",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Public itineraries, cloning and hotel/flight search from an itinerary"
+  },
+  {
+   "id": "FE-13",
+   "jira": "TRVL-157",
+   "kind": "frontend",
+   "owner": "malak",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Itinerary budget and currency UI"
+  },
+  {
+   "id": "FE-14",
+   "jira": "TRVL-158",
+   "kind": "frontend",
+   "owner": "malak",
+   "sprint": "S3",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Blog and community pages"
+  },
+  {
+   "id": "FE-15",
+   "jira": "TRVL-159",
+   "kind": "frontend",
+   "owner": "abdelrahman",
+   "sprint": "S4",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Admin moderation UI: reports and content actions"
+  },
+  {
+   "id": "FE-16",
+   "jira": "TRVL-160",
+   "kind": "frontend",
+   "owner": "ahmed",
+   "sprint": "S5",
+   "milestone": "M2",
+   "status": "To Do",
+   "title": "Integration testing, final documentation and Milestone 2 release"
+  }
+ ]
+}

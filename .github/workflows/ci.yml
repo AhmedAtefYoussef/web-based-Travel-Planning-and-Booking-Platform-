@@ -43,7 +43,15 @@ jobs:
         working-directory: .
         run: node .github/scripts/repo-consistency.mjs
 
+      # Claude Code tooling must at least parse (hooks fail closed on syntax errors)
+      - name: Claude tooling syntax
+        working-directory: .
+        run: for f in .claude/hooks/*.mjs .claude/skills/*/*.mjs; do node --check "$f"; done
+
       - run: npm ci
+      # Known highs (multer via @nestjs/platform-express, js-yaml via @nestjs/swagger) are tracked; criticals block
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=critical
       - run: npm run lint
       - run: npm run build
       - name: Build emits dist/main.js

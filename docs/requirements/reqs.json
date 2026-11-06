@@ -492,9 +492,7 @@
   "actors": "Registered User",
   "requirement": "The system shall allow a registered user to pay for a Pending Payment flight booking or hotel reservation within its hold period using Stripe in test mode (Stripe Elements / PaymentIntents), so that card details never reach the backend. The booking is confirmed only after the backend verifies that the PaymentIntent succeeded (via Stripe webhook). On failure an error is shown and the user may retry until the hold expires; when the hold expires the PaymentIntent is cancelled. Only the Stripe payment ID, amount, currency and status are stored.",
   "dependencies": "FLT-21, HTL-16, FLT-22, HTL-18",
-  "complexity": "High",
-  "acceptance": "POST /api/payments creates a Stripe PaymentIntent (platform currency, amountMinor = booking total) only for the owner's Pending Payment booking with unexpired hold and accepted policies, returning clientSecret; webhook with valid signature on payment_intent.succeeded (re-retrieved, status succeeded) calls markConfirmed once (idempotent); payment_failed marks payment FAILED and booking stays Pending Payment; POST /:id/retry allowed until hold expiry; cancelForExpiredHold cancels the PI; only stripeId, amountMinor, currency, status stored.",
-  "owner": "ahmed"
+  "complexity": "High"
  },
  {
   "id": "PAY-02",
@@ -503,9 +501,7 @@
   "actors": "Registered User",
   "requirement": "Before payment, the system shall show the provider's policies (airline: cancellation and baggage policies; hotel: cancellation policy and check-in/check-out times) and require an acceptance checkbox. Payment is blocked until accepted, and acceptance is stored with a timestamp.",
   "dependencies": "FLT-04, FLT-08, FLT-09, HTL-09, HTL-10",
-  "complexity": "Low",
-  "acceptance": "GET /api/bookings/:type/:id/policies returns airline (tiers + baggage) or hotel (tiers + check-in/out) policies to the owner; POST .../accept-policies with accepted=true stores policiesAcceptedAt and a policy snapshot; POST /api/payments returns 409/400 until accepted.",
-  "owner": "ahmed"
+  "complexity": "Low"
  },
  {
   "id": "PAY-03",
@@ -514,9 +510,7 @@
   "actors": "System",
   "requirement": "For every cancellation with a positive refund amount (user cancellations per the provider's tiers; provider-initiated cancellations at 100%), the system shall issue a refund through the Stripe Refunds API, record it, and show its status (Pending, Refunded, Failed) on the booking details. The user receives an in-app notification.",
   "dependencies": "PAY-01, FLT-09, HTL-10, GEN-01",
-  "complexity": "Medium",
-  "acceptance": "RefundsService.refundFor(type,id,reason): USER uses snapshot tier with highest daysBefore <= daysRemaining (none -> 0%), PROVIDER = 100%; amount 0 issues nothing; positive amount calls Stripe Refunds API, stores refund PENDING, webhook updates to REFUNDED/FAILED, notifies the user; GET /api/refunds/:id shows status to owner/admin.",
-  "owner": "ahmed"
+  "complexity": "Medium"
  },
  {
   "id": "ITN-01",
@@ -615,9 +609,7 @@
   "actors": "Registered User, System",
   "requirement": "The system shall convert all itinerary budget amounts to the user's preferred currency (from the supported currency list) using exchange rates fetched once per day from a configured public exchange-rate API and cached in the database, and show the rate date. If the API is unavailable, the last cached rates are used. Booking prices are not converted (PAY-04).",
   "dependencies": "ITN-14, ACC-09, PAY-04",
-  "complexity": "Medium",
-  "acceptance": "CurrencyService.convert(amountMinor,from,to) returns {amountMinor,rate,rateDate} using daily-cached FXRatesAPI rates stored in Mongo; on API failure uses last cached rates; unsupported code -> 400; GET /api/currencies and /api/currencies/rates expose list and rate date. (Ahmed owns the rates service; budget summary is Abdelrahman's.)",
-  "owner": "ahmed"
+  "complexity": "Medium"
  },
  {
   "id": "ITN-20",
@@ -770,9 +762,7 @@
   "actors": "System",
   "requirement": "The system shall show field-level validation messages on all forms.",
   "dependencies": null,
-  "complexity": "Low",
-  "acceptance": "Any DTO validation failure returns 400 {statusCode,error,message,fieldErrors:[{field,message}],path,timestamp}; nested fields use dotted paths.",
-  "owner": "ahmed"
+  "complexity": "Low"
  },
  {
   "id": "GEN-03",
@@ -799,9 +789,7 @@
   "actors": "System",
   "requirement": "The system shall paginate every list longer than 10 rows (page size 10).",
   "dependencies": null,
-  "complexity": "Low",
-  "acceptance": "Every list endpoint accepts ?page=N (default 1, >=1) with fixed page size 10 and returns {items,page,limit:10,total,totalPages}.",
-  "owner": "ahmed"
+  "complexity": "Low"
  },
  {
   "id": "GEN-06",
@@ -819,9 +807,7 @@
   "actors": "System",
   "requirement": "The system shall keep an audit log of admin actions (suspensions, deletions).",
   "dependencies": "ACC-15, ACC-16, GEN-10",
-  "complexity": "Low",
-  "acceptance": "AuditService.record({actorId,action,targetType,targetId,metadata}) appends an immutable entry; GET /api/admin/audit-logs (admin only) is paginated newest-first and filterable by actor, action, date range; non-admin gets 403.",
-  "owner": "ahmed"
+  "complexity": "Low"
  },
  {
   "id": "GEN-08",
@@ -830,9 +816,7 @@
   "actors": "System",
   "requirement": "The system shall accept image uploads in JPG or PNG format, up to 5 MB each, with up to 5 images per post, activity or hotel and 1 logo per airline, stored on the server and served by URL. Uploads outside these limits are rejected with an error.",
   "dependencies": null,
-  "complexity": "Medium",
-  "acceptance": "Uploads accept only JPG/PNG verified by MIME and magic bytes, <=5 MB each, max 5 per post/activity/hotel and 1 airline logo, stored under UPLOAD_DIR and served by URL; violations return 400 with a clear message.",
-  "owner": "ahmed"
+  "complexity": "Medium"
  },
  {
   "id": "GEN-09",
@@ -886,9 +870,7 @@
   "actors": "System",
   "requirement": "All flight and hotel prices, payments and refunds shall use a single platform currency.",
   "dependencies": null,
-  "complexity": "Low",
-  "acceptance": "PLATFORM_CURRENCY from env (validated ISO code) is the only currency for PaymentIntents, payment and refund records; all money is integer minor units; non-integer or negative amounts rejected.",
-  "owner": "ahmed"
+  "complexity": "Low"
  },
  {
   "id": "GEN-12",
@@ -906,9 +888,7 @@
   "actors": "System",
   "requirement": "All validation, business rules and authorisation shall be enforced by the backend regardless of frontend checks, and passwords shall be stored only as salted hashes.",
   "dependencies": null,
-  "complexity": "Medium",
-  "acceptance": "Global ValidationPipe(whitelist, forbidNonWhitelisted, transform) rejects unknown fields (e.g. role) with 400; deny-by-default guard requires auth unless @Public; password hashing helper uses salted bcrypt and never stores plaintext.",
-  "owner": "ahmed"
+  "complexity": "Medium"
  },
  {
   "id": "ACC-19",
