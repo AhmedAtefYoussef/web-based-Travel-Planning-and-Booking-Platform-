@@ -104,16 +104,23 @@ See `docs/architecture/adr-003-payments-webhook.md` for the design.
 
 - `docs/architecture/erd.md` - data model (Mermaid ERD) with collection owners
 - `docs/architecture/adr-001-auth-cookies.md`, `adr-002-inventory-concurrency.md`, `adr-003-payments-webhook.md`, `adr-004-money-and-time.md`
-- `docs/requirements/plan.md` - engineering plan and team workflow
+- `docs/architecture/decisions.md` - decisions log; `docs/architecture/module-map.md` - modules and contracts
+- `docs/requirements/` - official workbook (`reqs.json`), brief, traceability matrix, Jira snapshot
+- `docs/specs/` - one implementation spec per requirement
+- `docs/team/ownership.md`, `docs/team/onboarding.md` - who owns what, and how to work with Claude Code
 - `AI_PROMPTS.txt` - AI usage log
 
 ## Conventions
 
 Money is integer minor units (USD cents); times are UTC. Lists use `?page=N` with a fixed page size of 10 and return `{items, page, limit, total, totalPages}`. Errors return `{statusCode, error, message, fieldErrors?, path, timestamp}`. Commits follow Conventional Commits with the requirement ID, for example `feat(payments): ... [PAY-01]`.
 
+## Working with Claude Code
+
+Project rules for people and AI assistants: `CLAUDE.md` and `.claude/rules/`. Setup and daily workflow: `docs/team/onboarding.md`.
+
 ## Pull requests and merging
 
-Merging is automated with GitHub Actions only, using no external keys:
+Opening PRs and checking them is automated with GitHub Actions (no external keys); merging is always done by the team leader:
 
 1. Push your work to a branch such as `feature/FLT-11-round-trip` or `fix/HTL-18-overlap`. If no PR exists yet, **PR Automation** opens one into `develop`, titled after your first commit. Edit its description to add context.
 2. Two required checks run on every push:

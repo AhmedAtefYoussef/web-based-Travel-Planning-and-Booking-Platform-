@@ -11,11 +11,9 @@ coverage/
 .claude/worktrees/
 *.log
 
-# Credential handouts and agent scratch (spec §7.1)
+# Credentials handed out privately; never commit
 team-db-access/
-.swarm/tmp/
-.swarm/web/
-.claude/settings.local.json
 
-# Per-person Claude Code handoffs (team mode); the Leader handoff is .swarm/HANDOFF.md
-.swarm/handoff/*.md
+# Personal Claude Code state
+.claude/settings.local.json
+.claude/handoff/

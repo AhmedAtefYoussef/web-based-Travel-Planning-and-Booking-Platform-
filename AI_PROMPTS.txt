@@ -253,6 +253,20 @@ session handoff.
 Date: 2026-11-06
 Student: Ahmed Atef Youssef
 Tool: Claude Code (Claude Opus)
+Related Requirement: TRVL-1, TRVL-134
+Prompt:
+Scan the repository, project description, requirements workbook and Jira
+(all sprints and assignees), then replace the over-engineered Claude Code
+setup with a clean, modular one (CLAUDE.md, rules, skills, agents, hooks,
+spec template) and remove anything that conflicts with the workbook, Jira or
+the brief.
+How the output was used:
+Reviewed and kept the new setup: path-scoped rules, req/implement-requirement/
+pr-ready/handoff/jira-sync/release skills, three read-only agents, one guard
+hook (tested on 19 allow/block cases), a Jira snapshot and regenerated
+ownership. Removed .swarm/, plan.md, role hooks and author-added fields in
+reqs.json (rechecked against the workbook). Findings are in
+docs/reviews/2026-11-06-baseline.md.
 Related Requirement: PAY-03, PAY-01
 Prompt:
 Verify my implemented Jira stories against the requirements workbook and the

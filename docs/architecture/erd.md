@@ -1,6 +1,6 @@
 # Entity-relationship diagram (Milestone 1)
 
-Source: `docs/requirements/plan.md` "Data model". Amounts are integer minor units (USD cents); all times are stored in UTC.
+Source: the requirements workbook; each collection lists its owner (see `docs/team/ownership.md`). Amounts are integer minor units (USD cents); all times are stored in UTC.
 `payments` and `refunds` match the merged Mongoose schemas in `backend/src/modules/payments/schemas.ts`.
 
 ## Owners
