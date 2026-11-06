@@ -182,3 +182,16 @@ How the output was used:
 Reviewed the diff and reran build, lint, unit and e2e myself, alone and merged
 with the other Wave A fixes; opened as a PR into develop.
 ================================================
+Date: 2026-11-06
+Student: Ahmed Atef Youssef
+Tool: Claude Code
+Related Requirement: PAY-01, PAY-04
+Prompt:
+Fix card fix-PAY-01-1 from the Sprint 0 verification: confirm a booking only
+when the PaymentIntent amount and currency match, recreate a reused intent when
+the total changed, reject webhooks without a configured secret, refuse
+test-confirm in production, return 404 for other users' payments, tests first.
+How the output was used:
+Reviewed the diff, corrected one unrealistic e2e fixture, regenerated the
+OpenAPI file and reran all gates; opened as a PR into develop.
+================================================
