@@ -1,11 +1,17 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/require-await, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   BookingStatus,
   BookingType,
 } from '../../common/contracts/booking.contract';
 import { PaymentStatus } from '../../common/contracts/payments.contract';
 import { PaymentsService } from './payments.service';
+import { stripeProvider } from './stripe.provider';
 
 const future = () => new Date(Date.now() + 5 * 60_000);
 const view = (o: Record<string, unknown> = {}) => ({
@@ -22,7 +28,11 @@ const view = (o: Record<string, unknown> = {}) => ({
   ...o,
 });
 
-function setup(v = view(), platformCurrency = 'USD') {
+function setup(
+  v = view(),
+  platformCurrency = 'USD',
+  settings: Record<string, string | undefined> = {},
+) {
   const model = {
     create: jest.fn(async (d: any) => ({ id: 'pay1', _id: 'pay1', ...d })),
     findOne: jest.fn(async (): Promise<any> => null),
@@ -36,6 +46,9 @@ function setup(v = view(), platformCurrency = 'USD') {
         id: 'pi_1',
         client_secret: 'cs_1',
         status: 'succeeded',
+        amount: 12345,
+        amount_received: 12345,
+        currency: platformCurrency.toLowerCase(),
       })),
       cancel: jest.fn(async () => ({})),
       confirm: jest.fn(async () => ({})),
@@ -49,12 +62,13 @@ function setup(v = view(), platformCurrency = 'USD') {
     recordPolicyAcceptance: jest.fn(),
   };
   const refunds = { applyStripeRefund: jest.fn(), refundPayment: jest.fn() };
-  const values: Record<string, string> = {
+  const values: Record<string, string | undefined> = {
     STRIPE_WEBHOOK_SECRET: 'whsec_x',
     PLATFORM_CURRENCY: platformCurrency,
+    ...settings,
   };
   const config = {
-    get: (k: string) => values[k] ?? 'test',
+    get: (k: string) => (k in values ? values[k] : 'test'),
     getOrThrow: (k: string) => values[k] ?? 'test',
   };
   const svc = new PaymentsService(
@@ -121,6 +135,8 @@ describe('PaymentsService.createForBooking', () => {
       id: 'pi_0',
       client_secret: 'cs_0',
       status: 'requires_payment_method',
+      amount: 12345,
+      currency: 'usd',
     });
     const r = await svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
     expect(r.paymentId).toBe('pay0');
@@ -220,6 +236,8 @@ describe('PaymentsService.handleWebhook', () => {
     bookingType: 'FLIGHT',
     bookingId: 'b1',
     stripeId: 'pi_1',
+    amountMinor: 12345,
+    currency: 'USD',
   };
   const ev = (type: string, object: any = { id: 'pi_1' }) => ({
     type,
@@ -426,6 +444,7 @@ describe('PAY-01 F1: success on FAILED payment / retry guard', () => {
       id: 'pi_1',
       status: 'succeeded',
       amount_received: 12345,
+      currency: 'usd',
     });
     await s.svc.handleWebhook(Buffer.from('x'), 's');
     expect(state.status).toBe(PaymentStatus.SUCCEEDED);
@@ -536,5 +555,383 @@ describe('PAY-01 F3: late refund uses the captured PI', () => {
       fresh,
       'PROVIDER',
     );
+  });
+});
+
+describe('PAY-01/PAY-04 fix-PAY-01-1: amount and currency cross-check', () => {
+  const pending = {
+    id: 'pay1',
+    userId: 'u1',
+    bookingType: 'FLIGHT',
+    bookingId: 'b1',
+    stripeId: 'pi_1',
+    amountMinor: 12345,
+    currency: 'USD',
+    status: 'PENDING',
+  };
+  const succeededEvent = {
+    type: 'payment_intent.succeeded',
+    data: { object: { id: 'pi_1' } },
+  };
+
+  it.each([
+    ['amount_received < amountMinor', { amount_received: 12000 }],
+    ['amount_received > amountMinor', { amount_received: 99999 }],
+    ['amount_received missing', { amount_received: undefined }],
+    ['currency differs from the payment', { currency: 'eur' }],
+  ])(
+    'succeeded with %s does not markConfirmed; refunds and logs',
+    async (_n, o) => {
+      const s = setup();
+      statefulPayment(s, { ...pending });
+      const errorSpy = jest
+        .spyOn((s.svc as any).logger, 'error')
+        .mockImplementation(() => undefined);
+      s.stripe.webhooks.constructEvent.mockReturnValue(succeededEvent);
+      const fresh = {
+        id: 'pi_1',
+        status: 'succeeded',
+        amount: 12345,
+        amount_received: 12345,
+        currency: 'usd',
+        ...o,
+      };
+      s.stripe.paymentIntents.retrieve.mockResolvedValue(fresh);
+      await s.svc.handleWebhook(Buffer.from('x'), 's');
+      expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+      expect(s.refunds.refundPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'pay1' }),
+        fresh,
+        'PROVIDER',
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('pi_1'));
+    },
+  );
+
+  it('succeeded in a currency other than PLATFORM_CURRENCY does not confirm', async () => {
+    // Payment stored as USD, platform now EUR: never confirm a foreign charge.
+    const s = setup(view(), 'EUR');
+    statefulPayment(s, { ...pending });
+    jest
+      .spyOn((s.svc as any).logger, 'error')
+      .mockImplementation(() => undefined);
+    s.stripe.webhooks.constructEvent.mockReturnValue(succeededEvent);
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_1',
+      status: 'succeeded',
+      amount_received: 12345,
+      currency: 'usd',
+    });
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+    expect(s.refunds.refundPayment).toHaveBeenCalled();
+  });
+
+  it('succeeded for a payment whose amount no longer matches the booking total does not confirm', async () => {
+    const s = setup(view({ totalMinor: 20000 }));
+    statefulPayment(s, { ...pending });
+    jest
+      .spyOn((s.svc as any).logger, 'error')
+      .mockImplementation(() => undefined);
+    s.stripe.webhooks.constructEvent.mockReturnValue(succeededEvent);
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+    expect(s.refunds.refundPayment).toHaveBeenCalled();
+  });
+
+  it('succeeded with matching amount_received and currency confirms', async () => {
+    const s = setup();
+    statefulPayment(s, { ...pending });
+    s.stripe.webhooks.constructEvent.mockReturnValue(succeededEvent);
+    await s.svc.handleWebhook(Buffer.from('x'), 's');
+    expect(s.bookings.markConfirmed).toHaveBeenCalledWith(
+      'FLIGHT',
+      'b1',
+      'pay1',
+    );
+    expect(s.refunds.refundPayment).not.toHaveBeenCalled();
+  });
+
+  it('createForBooking after a total change returns the new amount', async () => {
+    const s = setup(view({ totalMinor: 12345 }));
+    const state = statefulPayment(s, {
+      ...pending,
+      id: 'pay0',
+      stripeId: 'pi_0',
+      amountMinor: 10000,
+    });
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_0',
+      client_secret: 'cs_0',
+      status: 'requires_payment_method',
+      amount: 10000,
+      currency: 'usd',
+    });
+    const r = await s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(s.stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_0');
+    expect(s.stripe.paymentIntents.create).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 12345, currency: 'usd' }),
+      expect.anything(),
+    );
+    expect(s.model.findOneAndUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ stripeId: 'pi_0', status: 'PENDING' }),
+      expect.objectContaining({
+        stripeId: 'pi_1',
+        amountMinor: 12345,
+        currency: 'USD',
+        $addToSet: { stripeIdHistory: 'pi_0' },
+      }),
+      expect.anything(),
+    );
+    expect(state.stripeId).toBe('pi_1');
+    expect(r).toEqual({
+      paymentId: 'pay0',
+      clientSecret: 'cs_1',
+      amountMinor: 12345,
+      currency: 'USD',
+    });
+  });
+
+  it('createForBooking recreates a reused PI whose Stripe amount drifted', async () => {
+    const s = setup();
+    statefulPayment(s, { ...pending, id: 'pay0', stripeId: 'pi_0' });
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_0',
+      client_secret: 'cs_0',
+      status: 'requires_payment_method',
+      amount: 999,
+      currency: 'usd',
+    });
+    const r = await s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(s.stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_0');
+    expect(r.clientSecret).toBe('cs_1');
+    expect(r.amountMinor).toBe(12345);
+  });
+
+  it('createForBooking on a duplicate-key race (11000) returns the existing PENDING payment', async () => {
+    const s = setup();
+    const winner = { ...pending, id: 'pay0', stripeId: 'pi_0' };
+    s.model.findOne
+      .mockResolvedValueOnce(null) // first look: nothing yet
+      .mockResolvedValueOnce(winner); // re-read after the race
+    s.model.create.mockRejectedValueOnce(
+      Object.assign(new Error('E11000 duplicate key'), { code: 11000 }),
+    );
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_0',
+      client_secret: 'cs_0',
+      status: 'requires_payment_method',
+      amount: 12345,
+      currency: 'usd',
+    });
+    const r = await s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(r).toEqual({
+      paymentId: 'pay0',
+      clientSecret: 'cs_0',
+      amountMinor: 12345,
+      currency: 'USD',
+    });
+    // The intent opened by the losing request is not left dangling.
+    expect(s.stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_1');
+  });
+
+  it('createForBooking duplicate-key race sharing the same idempotent PI does not cancel it', async () => {
+    const s = setup();
+    s.model.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ ...pending, id: 'pay0', stripeId: 'pi_1' });
+    s.model.create.mockRejectedValueOnce(
+      Object.assign(new Error('E11000 duplicate key'), { code: 11000 }),
+    );
+    const r = await s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(r.paymentId).toBe('pay0');
+    expect(s.stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+  });
+
+  it('createForBooking rethrows non-duplicate insert errors', async () => {
+    const s = setup();
+    s.model.create.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1'),
+    ).rejects.toThrow('db down');
+  });
+
+  it('createForBooking reuses an unchanged PI', async () => {
+    const s = setup();
+    statefulPayment(s, { ...pending, id: 'pay0', stripeId: 'pi_0' });
+    s.stripe.paymentIntents.retrieve.mockResolvedValue({
+      id: 'pi_0',
+      client_secret: 'cs_0',
+      status: 'requires_payment_method',
+      amount: 12345,
+      currency: 'usd',
+    });
+    const r = await s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1');
+    expect(r.clientSecret).toBe('cs_0');
+    expect(s.stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+    expect(s.stripe.paymentIntents.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['succeeded', 'processing'])(
+    'createForBooking with a changed total 409s when the old PI is %s',
+    async (piStatus) => {
+      const s = setup(view({ totalMinor: 20000 }));
+      statefulPayment(s, { ...pending, id: 'pay0', stripeId: 'pi_0' });
+      s.stripe.paymentIntents.retrieve.mockResolvedValue({
+        id: 'pi_0',
+        client_secret: 'cs_0',
+        status: piStatus,
+        amount: 12345,
+        currency: 'usd',
+      });
+      await expect(
+        s.svc.createForBooking('u1', BookingType.FLIGHT, 'b1'),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(s.stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+      expect(s.stripe.paymentIntents.create).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('PAY-01 fix-PAY-01-1: webhook secret fails closed', () => {
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+  ])(
+    'handleWebhook with no configured secret (%s) rejects an event',
+    async (_n, secret) => {
+      const s = setup(view(), 'USD', { STRIPE_WEBHOOK_SECRET: secret });
+      jest
+        .spyOn((s.svc as any).logger, 'error')
+        .mockImplementation(() => undefined);
+      s.stripe.webhooks.constructEvent.mockReturnValue({
+        type: 'payment_intent.succeeded',
+        data: { object: { id: 'pi_1' } },
+      });
+      await expect(
+        s.svc.handleWebhook(Buffer.from('{}'), 'sig'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(s.stripe.webhooks.constructEvent).not.toHaveBeenCalled();
+      expect(s.bookings.markConfirmed).not.toHaveBeenCalled();
+    },
+  );
+});
+
+describe('PAY-01 A3: testConfirm is dev-only', () => {
+  it('testConfirm with NODE_ENV=production throws NotFoundException and never calls paymentIntents.confirm', async () => {
+    const s = setup(view(), 'USD', { NODE_ENV: 'production' });
+    s.model.findById.mockResolvedValue({
+      id: 'pay1',
+      userId: 'u1',
+      stripeId: 'pi_1',
+    });
+    await expect(s.svc.testConfirm('u1', 'pay1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(s.stripe.paymentIntents.confirm).not.toHaveBeenCalled();
+  });
+  it('testConfirm outside production confirms the owner PI', async () => {
+    const s = setup(view(), 'USD', { NODE_ENV: 'development' });
+    s.model.findById.mockResolvedValue({
+      id: 'pay1',
+      userId: 'u1',
+      stripeId: 'pi_1',
+    });
+    await s.svc.testConfirm('u1', 'pay1');
+    expect(s.stripe.paymentIntents.confirm).toHaveBeenCalledWith(
+      'pi_1',
+      expect.objectContaining({ payment_method: 'pm_card_visa' }),
+    );
+  });
+});
+
+describe('PAY-01 F17: payments minor fixes', () => {
+  const doc = {
+    id: 'pay1',
+    userId: 'u1',
+    bookingType: 'FLIGHT',
+    bookingId: 'b1',
+    stripeId: 'pi_1',
+    amountMinor: 12345,
+    currency: 'USD',
+    status: 'PENDING',
+  };
+  it("getForUser other user's id -> 404", async () => {
+    const s = setup();
+    s.model.findById.mockResolvedValue(doc);
+    await expect(
+      s.svc.getForUser('other', false, 'pay1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+  it('getForUser: owner and admin can read', async () => {
+    const s = setup();
+    s.model.findById.mockResolvedValue(doc);
+    await expect(s.svc.getForUser('u1', false, 'pay1')).resolves.toEqual(
+      expect.objectContaining({ id: 'pay1', amountMinor: 12345 }),
+    );
+    await expect(s.svc.getForUser('admin', true, 'pay1')).resolves.toEqual(
+      expect.objectContaining({ id: 'pay1' }),
+    );
+  });
+  it('cancelForExpiredHold on a succeeded PI does not throw', async () => {
+    const s = setup();
+    s.model.findOne.mockResolvedValue(doc);
+    s.stripe.paymentIntents.cancel.mockRejectedValue(
+      Object.assign(new Error('unexpected state'), {
+        code: 'payment_intent_unexpected_state',
+      }),
+    );
+    await expect(
+      s.svc.cancelForExpiredHold(BookingType.FLIGHT, 'b1'),
+    ).resolves.toBeUndefined();
+  });
+  it('cancelForExpiredHold only cancels a still-open payment (no overwrite of SUCCEEDED)', async () => {
+    const s = setup();
+    const state = statefulPayment(s, { ...doc });
+    s.model.findOne.mockResolvedValue({ ...doc });
+    s.stripe.paymentIntents.cancel.mockImplementation(async () => {
+      state.status = 'SUCCEEDED'; // the webhook won the race
+      return {};
+    });
+    await s.svc.cancelForExpiredHold(BookingType.FLIGHT, 'b1');
+    expect(state.status).toBe('SUCCEEDED');
+  });
+  it('cancelForExpiredHold rethrows other Stripe errors', async () => {
+    const s = setup();
+    s.model.findOne.mockResolvedValue(doc);
+    s.stripe.paymentIntents.cancel.mockRejectedValue(new Error('network'));
+    await expect(
+      s.svc.cancelForExpiredHold(BookingType.FLIGHT, 'b1'),
+    ).rejects.toThrow('network');
+  });
+});
+
+describe('PAY-01 F17: Stripe client has no silent placeholder key', () => {
+  const cfg = (values: Record<string, string | undefined>) =>
+    ({ get: (k: string) => values[k] }) as any;
+  afterEach(() => jest.restoreAllMocks());
+  it('throws in production without STRIPE_SECRET_KEY', () => {
+    expect(() =>
+      stripeProvider.useFactory(cfg({ NODE_ENV: 'production' })),
+    ).toThrow(/STRIPE_SECRET_KEY/);
+  });
+  it('warns loudly outside production without STRIPE_SECRET_KEY', () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    const client = stripeProvider.useFactory(cfg({ NODE_ENV: 'development' }));
+    expect(client).toBeDefined();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('STRIPE_SECRET_KEY'),
+    );
+  });
+  it('uses the configured key without warning', () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    stripeProvider.useFactory(
+      cfg({ NODE_ENV: 'production', STRIPE_SECRET_KEY: 'sk_test_unit' }),
+    );
+    expect(warn).not.toHaveBeenCalled();
   });
 });

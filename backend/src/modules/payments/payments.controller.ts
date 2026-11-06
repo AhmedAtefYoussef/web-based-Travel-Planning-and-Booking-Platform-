@@ -197,7 +197,7 @@ export class PaymentsController {
   @ApiOperation({ summary: '[PAY-01] Get a payment (owner or admin)' })
   @ApiParam({ name: 'id', description: 'Payment id' })
   @ApiOkResponse({ type: PaymentViewDto })
-  @ApiErrors(400, 401, 403, 404)
+  @ApiErrors(400, 401, 404)
   @Get(':id')
   get(
     @CurrentUser() user: AuthUser,
