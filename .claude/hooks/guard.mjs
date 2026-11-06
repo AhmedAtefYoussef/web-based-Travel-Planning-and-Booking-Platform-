@@ -123,7 +123,7 @@ function checkCommand(cmd) {
   const forms = [cmd, unquoted, slashed];
   const any = (re) => forms.some((f) => re.test(f));
   // Protected file names alone also count, so relative paths from inside a folder are caught.
-  const PROTECTED_NAMES = /(^|[^\w.-])(guard\.mjs|session-start\.mjs|settings(\.local)?\.json|reqs\.json|project-description\.md|[\w.-]+\.xlsx)(?![\w.-])/i;
+  const PROTECTED_NAMES = /(^|[^\w.-])(guard\.mjs|session-start\.mjs|settings(\.local)?\.json|reqs\.json|project-description\.md)(?![\w.-])|\.xlsx(?![\w.-])/i;
   const syntaxCheckOnly = /^[ \t]*node[ \t]+--check[ \t]+[\w./\\-]+[ \t]*$/i.test(cmd);
   if ((any(PROTECTED) || any(PROTECTED_NAMES)) && any(WRITES) && !syntaxCheckOnly) {
     block('the command may change the guard, project settings, .git internals or the official requirement files; a person changes those.');
@@ -131,8 +131,9 @@ function checkCommand(cmd) {
   // Working from inside the protected folders would hide relative paths; changing directory and writing
   // in the same command is refused outright.
   const CD = /(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)(\s|$)/i;
-  if (any(/(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs\/+requirements)(\/|\s|$)/i)) {
-    block('do not change directory into .claude, .git or docs/requirements; use paths from the project root.');
+  // The shell's working directory persists between calls, so a lone cd counts too (also one step at a time).
+  if (any(/(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs|requirements|hooks)(\/|\s|$|[;&|)])/i)) {
+    block('do not change directory into .claude, .git, docs or requirements; use paths from the project root.');
   }
   // A directory change plus any write is refused unless the WHOLE command is one of these exact forms
   // (one plain cd into backend/ or frontend/, then one npm/npx jest call, nothing after it).
