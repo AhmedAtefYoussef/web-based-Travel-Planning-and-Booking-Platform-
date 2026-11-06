@@ -17,6 +17,7 @@ export interface EnvVars {
   SESSION_IDLE_MINUTES: number;
   PLATFORM_CURRENCY: string;
   COOKIE_SECURE: boolean;
+  STRIPE_ALLOW_LIVE_KEYS: boolean;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
   FX_API_KEY: string;
@@ -45,9 +46,11 @@ const prodRequired = (schema: Joi.StringSchema) =>
   });
 
 export const envSchema = Joi.object<EnvVars>({
-  NODE_ENV: Joi.string()
-    .valid('development', 'test', 'production')
-    .default('development'),
+  /**
+   * Required, no default: a missing value must not silently become
+   * development (fail closed). Jest and test/setup-env.ts set it to test.
+   */
+  NODE_ENV: Joi.string().valid('development', 'test', 'production').required(),
   /** Temporary header auth (x-dev-*); opt-in, never allowed in production. */
   DEV_AUTH_ENABLED: Joi.boolean()
     .default(false)
@@ -66,8 +69,25 @@ export const envSchema = Joi.object<EnvVars>({
   JWT_REFRESH_TTL: Joi.string().pattern(durationPattern).default('7d'),
   SESSION_IDLE_MINUTES: Joi.number().integer().min(1).default(30),
   PLATFORM_CURRENCY: iso4217.default('USD'),
-  COOKIE_SECURE: Joi.boolean().default(false),
-  STRIPE_SECRET_KEY: prodRequired(Joi.string().pattern(/^(sk|rk)_/)),
+  /** Production must set COOKIE_SECURE=true explicitly (no default there). */
+  COOKIE_SECURE: Joi.boolean().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.valid(true).required(),
+    otherwise: Joi.boolean().default(false),
+  }),
+  /** Live Stripe keys (sk_live_/rk_live_) are refused unless this is true. */
+  STRIPE_ALLOW_LIVE_KEYS: Joi.boolean().default(false),
+  STRIPE_SECRET_KEY: prodRequired(
+    Joi.string()
+      .pattern(/^(sk|rk)_/)
+      .when('STRIPE_ALLOW_LIVE_KEYS', {
+        is: true,
+        otherwise: Joi.string().pattern(/^(sk|rk)_live_/, {
+          name: 'Stripe test-mode key',
+          invert: true,
+        }),
+      }),
+  ),
   STRIPE_WEBHOOK_SECRET: prodRequired(Joi.string().pattern(/^whsec_/)),
   FX_API_KEY: Joi.string().optional().allow(''),
   FX_API_BASE_URL: Joi.string()
