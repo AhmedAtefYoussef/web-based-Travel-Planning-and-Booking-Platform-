@@ -7,6 +7,17 @@ import {
   RefundStatus,
 } from '../../common/contracts/refunds.contract';
 
+/** Money is stored as non-negative integer minor units (PAY-04). */
+const minorUnits = {
+  type: Number,
+  required: true,
+  min: 0,
+  validate: {
+    validator: (v: number) => Number.isInteger(v),
+    message: '{PATH} must be an integer amount in minor units',
+  },
+} as const;
+
 /** Only the PAY-01 fields are stored; never card data. */
 @Schema({ collection: 'payments', timestamps: true })
 export class Payment {
@@ -14,11 +25,12 @@ export class Payment {
   bookingType: BookingType;
   @Prop({ required: true, index: true }) bookingId: string;
   @Prop({ required: true }) userId: string;
-  @Prop({ required: true, index: true }) stripeId: string;
+  /** Current PaymentIntent id; unique (see the indexes below). */
+  @Prop({ required: true }) stripeId: string;
   /** Earlier PaymentIntent ids superseded by retries. */
   @Prop({ type: [String], default: [], index: true })
   stripeIdHistory: string[];
-  @Prop({ required: true }) amountMinor: number;
+  @Prop(minorUnits) amountMinor: number;
   /** Always PLATFORM_CURRENCY, set by the service (no schema default). */
   @Prop({ required: true }) currency: string;
   @Prop({
@@ -31,6 +43,17 @@ export class Payment {
 }
 export type PaymentDocument = HydratedDocument<Payment>;
 export const PaymentSchema = SchemaFactory.createForClass(Payment);
+/** One payment record per PaymentIntent. */
+PaymentSchema.index({ stripeId: 1 }, { unique: true, name: 'stripeId_unique' });
+/** At most one PENDING payment per booking, even under concurrent creates. */
+PaymentSchema.index(
+  { bookingType: 1, bookingId: 1 },
+  {
+    unique: true,
+    name: 'booking_pending_unique',
+    partialFilterExpression: { status: PaymentStatus.PENDING },
+  },
+);
 
 @Schema({ collection: 'refunds', timestamps: true })
 export class Refund {
@@ -44,7 +67,13 @@ export class Refund {
   paymentIntentId: string;
   @Prop({ type: String, default: null })
   stripeRefundId: string | null;
-  @Prop({ required: true }) amountMinor: number;
+  /**
+   * Stripe idempotency key fixed when the refund slot is claimed; reused for
+   * any retry of this claim so Stripe never creates a second refund for it.
+   */
+  @Prop({ type: String, default: null })
+  idempotencyKey: string | null;
+  @Prop(minorUnits) amountMinor: number;
   /** Always PLATFORM_CURRENCY, set by the service (no schema default). */
   @Prop({ required: true }) currency: string;
   @Prop({ type: String, required: true, enum: ['USER', 'PROVIDER'] })
@@ -65,5 +94,20 @@ RefundSchema.index(
   {
     unique: true,
     partialFilterExpression: { stripeRefundId: { $type: 'string' } },
+  },
+);
+/**
+ * At most one active (not FAILED) refund per PaymentIntent. The service
+ * claims this slot before calling Stripe, so concurrent refundFor /
+ * refundPayment calls issue a single refund.
+ */
+RefundSchema.index(
+  { paymentIntentId: 1 },
+  {
+    unique: true,
+    name: 'paymentIntentId_active_unique',
+    partialFilterExpression: {
+      status: { $in: [RefundStatus.PENDING, RefundStatus.REFUNDED] },
+    },
   },
 );
