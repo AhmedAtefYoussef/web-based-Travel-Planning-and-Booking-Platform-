@@ -95,14 +95,23 @@ function checkFile(raw, isWrite, root) {
 
 function checkDirectoryChanges(forms) {
   const root = canonical(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
+  // Relative targets resolve from the shell's real working directory, not the project root.
+  const cwd = canonical(input.cwd || root);
   const allowed = [root, path.join(root, 'backend'), path.join(root, 'frontend')];
+  // Links or junctions created in the same command could turn an allowed name into a protected folder;
+  // CDPATH changes where a relative cd lands.
+  const LINKS = /\b(mklink|junction|fsutil|ln|cmd(\.exe)?\s+\/c|New-Item\b[^;&|]*-ItemType\s+(Junction|SymbolicLink|HardLink))\b/i;
+  if (forms.some((f) => /\bCDPATH\b/i.test(f))) block('do not set CDPATH.');
   const CD_CMD = /(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)(?=\s|$|[;&|)])([ \t]+(-\w+[ \t]+)*("[^"]*"|'[^']*'|[^\s;&|)]+))?/gi;
   for (const f of forms) {
     for (const m of f.matchAll(CD_CMD)) {
       const target = (m[5] ?? '').replace(/^["']|["']$/g, '');
       if (!target) block('a bare cd changes to the home folder; cd only to the project root, backend/ or frontend/.');
       if (/[$*?[\]`~%{}]/.test(target)) block('cd targets may not contain variables, globs, ~ or substitutions.');
-      const dest = canonical(path.resolve(root, target.replace(/\\+/g, '/')));
+      // ".." is resolved lexically by the shell but physically by realpath; refuse it instead of guessing.
+      if (/(^|[\\/])\.\.([\\/]|$)/.test(target) || /\s-\w*P/.test(m[0])) block('cd targets may not contain ".." or use -P.');
+      if (forms.some((x) => LINKS.test(x))) block('creating links and changing directory in one command is not allowed.');
+      const dest = canonical(path.resolve(cwd, target.replace(/\\+/g, '/')));
       const ok = dest === root || allowed.slice(1).some((a) => dest === a || dest.startsWith(a + path.sep));
       if (!ok) block('cd only to the project root, backend/ or frontend/ (and folders inside those two).');
     }
