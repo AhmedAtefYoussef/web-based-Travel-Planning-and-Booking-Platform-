@@ -93,6 +93,22 @@ function checkFile(raw, isWrite, root) {
   }
 }
 
+function checkDirectoryChanges(forms) {
+  const root = canonical(process.env.CLAUDE_PROJECT_DIR || input.cwd || process.cwd());
+  const allowed = [root, path.join(root, 'backend'), path.join(root, 'frontend')];
+  const CD_CMD = /(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)(?=\s|$|[;&|)])([ \t]+(-\w+[ \t]+)*("[^"]*"|'[^']*'|[^\s;&|)]+))?/gi;
+  for (const f of forms) {
+    for (const m of f.matchAll(CD_CMD)) {
+      const target = (m[5] ?? '').replace(/^["']|["']$/g, '');
+      if (!target) block('a bare cd changes to the home folder; cd only to the project root, backend/ or frontend/.');
+      if (/[$*?[\]`~%{}]/.test(target)) block('cd targets may not contain variables, globs, ~ or substitutions.');
+      const dest = canonical(path.resolve(root, target.replace(/\\+/g, '/')));
+      const ok = dest === root || allowed.slice(1).some((a) => dest === a || dest.startsWith(a + path.sep));
+      if (!ok) block('cd only to the project root, backend/ or frontend/ (and folders inside those two).');
+    }
+  }
+}
+
 function checkCommand(cmd) {
   if (!cmd) return;
   // Quoting and escape tricks ('.e'nv, .e""nv, t^eam) are removed before matching.
@@ -131,10 +147,10 @@ function checkCommand(cmd) {
   // Working from inside the protected folders would hide relative paths; changing directory and writing
   // in the same command is refused outright.
   const CD = /(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)(\s|$)/i;
-  // The shell's working directory persists between calls, so a lone cd counts too (also one step at a time).
-  if (any(/(^|[\s;&|(])(cd|pushd|Push-Location|Set-Location|sl|chdir)\s+\S*(\.claude|\.git|docs|requirements|hooks)(\/|\s|$|[;&|)])/i)) {
-    block('do not change directory into .claude, .git, docs or requirements; use paths from the project root.');
-  }
+  // The shell's working directory persists between calls. Fail closed: every directory change must land
+  // on the project root, backend/ or frontend/ (or a folder inside those two), written without variables,
+  // globs, ~ or substitutions. Anything else (a bare cd included) is blocked.
+  checkDirectoryChanges(forms);
   // A directory change plus any write is refused unless the WHOLE command is one of these exact forms
   // (one plain cd into backend/ or frontend/, then one npm/npx jest call, nothing after it).
   const CD_ALLOWED = /^[ \t]*cd[ \t]+(backend|frontend)\/?[ \t]*&&[ \t]*(npm[ \t]+(ci|test|run[ \t]+[\w:-]+|audit)|npx[ \t]+jest)([ \t]+[\w./:=@-]+|[ \t]+"[\w ./:=@\\()|-]+")*[ \t]*$/i;
