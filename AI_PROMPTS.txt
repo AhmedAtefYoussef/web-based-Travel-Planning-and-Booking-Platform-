@@ -267,4 +267,17 @@ hook (tested on 19 allow/block cases), a Jira snapshot and regenerated
 ownership. Removed .swarm/, plan.md, role hooks and author-added fields in
 reqs.json (rechecked against the workbook). Findings are in
 docs/reviews/2026-11-06-baseline.md.
+Related Requirement: PAY-03, PAY-01
+Prompt:
+Verify my implemented Jira stories against the requirements workbook and the
+project description with zero tolerance for errors, then fix what fails,
+tests first.
+How the output was used:
+The review found two defects the fakes hid: refunds that Stripe creates as
+succeeded (normal for test cards, no refund.updated follows) stayed PENDING,
+and POST /payments after a failed attempt reused the first idempotency key and
+failed with a duplicate stripeId. I kept the fix after checking that the new
+tests fail without it: refunds take the status returned at creation, the
+webhook also handles refund.created and refund.failed, and paying again reuses
+the failed payment through the retry path. All gates rerun.
 ================================================

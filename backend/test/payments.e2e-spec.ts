@@ -437,6 +437,28 @@ describe('Payments, policies and refunds (e2e)', () => {
         .expect(409);
     });
 
+    it('paying again with POST /payments after a failure reuses the payment with a new PaymentIntent', async () => {
+      const { b, paymentId, piId } = await paidSetup();
+      await sendWebhook(
+        signedEvent('payment_intent.payment_failed', {
+          id: piId,
+          object: 'payment_intent',
+          status: 'requires_payment_method',
+        }),
+      ).expect(200);
+
+      const again = await pay(b).expect(201);
+      expect(again.body.paymentId).toBe(paymentId);
+      const newPi = [...t.stripe.intents.keys()].at(-1)!;
+      expect(newPi).not.toBe(piId);
+      expect(t.stripe.intents.get(piId)!.status).toBe('canceled');
+      const now = await http()
+        .get(`/api/payments/${paymentId}`)
+        .set(asUser())
+        .expect(200);
+      expect(now.body.status).toBe('PENDING');
+    });
+
     it('retry is refused (409) unless the payment is FAILED', async () => {
       const { paymentId } = await paidSetup();
       await http()
